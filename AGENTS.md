@@ -23,7 +23,7 @@ Evidence Atlas는 KAPE/EvtxECmd 등의 CSV 출력을 파싱하여 원본을 보�
 | Phase 1: ES 백엔드 | 동기화·조회 완료 / ES 뷰어 전환 미완료 | `es_store.py`, `es_mappings.py` |
 | Phase 2: 그래프 시각화 | ✅ 구현·검증 완료 | `static/graph.js`, `static/graph.css` |
 | Phase 3: Sigma 매칭 | ✅ 구현·검증 완료 | `sigma_engine.py`, `tests/test_sigma.py` |
-| Phase 4: 다중 소스 | 미착수 | — |
+| Phase 4: 다중 소스 | ✅ 구현·검증 완료 | `adapters.py` (Sysmon/SRUM), `pipeline.py` (MFT/USN), `tests/test_phase4.py` |
 | Phase 5: 다중 호스트 | 미착수 | — |
 
 ## 4. 교차 개발 (Claude ↔ Codex)

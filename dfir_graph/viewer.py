@@ -84,6 +84,29 @@ def serve(database, port=8765, ai_model=None):
                     result = store.neighborhood(arg("id"), int(arg("limit", "30")))
                 elif parsed.path == "/api/evidence":
                     result = store.evidence(arg("id"))
+                elif parsed.path == "/api/filesystem/sources":
+                    from .filesystem import FileIndex, available
+                    if available(store.db):
+                        fi = FileIndex(store.db)
+                        result = fi.sources(arg("case"))
+                    else:
+                        result = []
+                elif parsed.path == "/api/filesystem/search":
+                    from .filesystem import FileIndex, available
+                    if not available(store.db):
+                        result = {"items": [], "total": 0, "offset": 0, "limit": 50}
+                    else:
+                        fi = FileIndex(store.db)
+                        result = fi.search(case=arg("case"), q=arg("q"), path=arg("path"),
+                                           slot=arg("slot", "created"),
+                                           offset=arg("offset", "0"), limit=arg("limit", "50"))
+                elif parsed.path == "/api/filesystem/evidence":
+                    from .filesystem import FileIndex, available
+                    if not available(store.db):
+                        result = None
+                    else:
+                        fi = FileIndex(store.db)
+                        result = fi.evidence(arg("id"))
                 elif parsed.path == "/api/detections":
                     from .sigma_engine import list_detections
                     result = list_detections(database, case_id=arg("case") or None,

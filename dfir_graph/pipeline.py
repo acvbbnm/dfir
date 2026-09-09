@@ -6,9 +6,10 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .adapters import (ADAPTER_VERSION, ADAPTER_VERSIONS, REGISTRY_ADAPTERS, LINK_ADAPTERS, classify,
+from .adapters import (ADAPTER_VERSION, ADAPTER_VERSIONS, REGISTRY_ADAPTERS, LINK_ADAPTERS, SRUM_ADAPTERS, classify,
                         ingest_evtx, ingest_prefetch,
-                        ingest_amcache_file, ingest_appcompat, ingest_bam, ingest_userassist, ingest_link)
+                        ingest_amcache_file, ingest_appcompat, ingest_bam, ingest_userassist, ingest_link,
+                        ingest_srum_network, ingest_srum_app)
 from .model import csv_encoding, dumps, sha256_file, uid, source_scope
 from .store import Store
 
@@ -161,10 +162,13 @@ def ingest(root, database, case_id, host=None, time_zone="UTC", progress=None):
                     count = 0
                     registry_handlers = {"amcache_file": ingest_amcache_file, "appcompat_cache": ingest_appcompat,
                                          "bam": ingest_bam, "userassist": ingest_userassist}
-                    if adapter in ("evtxecmd", "pecmd") + REGISTRY_ADAPTERS + LINK_ADAPTERS:
+                    srum_handlers = {"srum_network": ingest_srum_network, "srum_app": ingest_srum_app}
+                    if adapter in ("evtxecmd", "pecmd") + REGISTRY_ADAPTERS + LINK_ADAPTERS + SRUM_ADAPTERS:
                         handler = (ingest_evtx if adapter == "evtxecmd" else
                                    ingest_prefetch if adapter == "pecmd" else
-                                   ingest_link if adapter in LINK_ADAPTERS else registry_handlers[adapter])
+                                   ingest_link if adapter in LINK_ADAPTERS else
+                                   srum_handlers[adapter] if adapter in SRUM_ADAPTERS else
+                                   registry_handlers[adapter])
                         with path.open("r", encoding=csv_encoding(path), newline="") as stream:
                             for ordinal, row in enumerate(csv.DictReader(stream, strict=True), 1):
                                 if None in row or any(value is None for value in row.values()):
@@ -173,6 +177,11 @@ def ingest(root, database, case_id, host=None, time_zone="UTC", progress=None):
                                 count += 1
                                 if count % 25000 == 0:
                                     progress(f"  staged {count:,} records")
+                        status = "complete"
+                    elif adapter in ("mftecmd_mft", "mftecmd_usn"):
+                        from .filesystem import ensure_schema, ingest_rows
+                        ensure_schema(store.db)
+                        count = ingest_rows(store.db, source, path, options, origin, progress)
                         status = "complete"
                     elif adapter == "metadata":
                         status = "metadata"

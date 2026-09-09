@@ -40,9 +40,13 @@ CREATE INDEX IF NOT EXISTS detections_level ON detections(rule_level);
 # EA record kind → Sigma logsource mapping
 LOGSOURCE_MAP = {
     "process_creation": {"category": "process_creation", "product": "windows"},
+    "sysmon_process_create": {"category": "process_creation", "product": "windows"},
     "powershell_scriptblock": {"category": "ps_script", "product": "windows"},
     "logon_success": {"product": "windows", "service": "security"},
     "logon_failure": {"product": "windows", "service": "security"},
+    "sysmon_network_connect": {"category": "network_connection", "product": "windows"},
+    "sysmon_file_create": {"category": "file_event", "product": "windows"},
+    "sysmon_dns_query": {"category": "dns_query", "product": "windows"},
 }
 
 # EA record kind → applicable EventIds for service-based rules
@@ -51,6 +55,10 @@ KIND_EVENT_IDS = {
     "logon_failure": "4625",
     "process_creation": "4688",
     "powershell_scriptblock": "4104",
+    "sysmon_process_create": "1",
+    "sysmon_network_connect": "3",
+    "sysmon_file_create": "11",
+    "sysmon_dns_query": "22",
 }
 
 
@@ -106,6 +114,66 @@ def _field_map_powershell(raw, event_data):
     }
 
 
+def _field_map_sysmon_process_creation(raw, event_data):
+    """Map Sysmon EventId 1 fields to Sigma process_creation field names."""
+    return {
+        "Image": event_data.get("Image", ""),
+        "OriginalFileName": event_data.get("OriginalFileName", ""),
+        "CommandLine": event_data.get("CommandLine", ""),
+        "ParentImage": event_data.get("ParentImage", ""),
+        "ParentCommandLine": event_data.get("ParentCommandLine", ""),
+        "User": event_data.get("User", ""),
+        "IntegrityLevel": event_data.get("IntegrityLevel", ""),
+        "Hashes": event_data.get("Hashes", ""),
+        "Computer": raw.get("Computer", ""),
+        "ProcessId": event_data.get("ProcessId", ""),
+        "ParentProcessId": event_data.get("ParentProcessId", ""),
+        "CurrentDirectory": event_data.get("CurrentDirectory", ""),
+        "LogonId": event_data.get("LogonId", ""),
+        "Product": event_data.get("Product", ""),
+        "Company": event_data.get("Company", ""),
+        "Description": event_data.get("Description", ""),
+    }
+
+
+def _field_map_sysmon_network(raw, event_data):
+    """Map Sysmon EventId 3 fields to Sigma network_connection field names."""
+    return {
+        "Image": event_data.get("Image", ""),
+        "User": event_data.get("User", ""),
+        "Protocol": event_data.get("Protocol", ""),
+        "Initiated": event_data.get("Initiated", ""),
+        "SourceIp": event_data.get("SourceIp", ""),
+        "SourcePort": event_data.get("SourcePort", ""),
+        "DestinationIp": event_data.get("DestinationIp", ""),
+        "DestinationPort": event_data.get("DestinationPort", ""),
+        "DestinationHostname": event_data.get("DestinationHostname", ""),
+        "Computer": raw.get("Computer", ""),
+    }
+
+
+def _field_map_sysmon_file(raw, event_data):
+    """Map Sysmon EventId 11 fields to Sigma file_event field names."""
+    return {
+        "Image": event_data.get("Image", ""),
+        "TargetFilename": event_data.get("TargetFilename", ""),
+        "User": event_data.get("User", ""),
+        "Computer": raw.get("Computer", ""),
+    }
+
+
+def _field_map_sysmon_dns(raw, event_data):
+    """Map Sysmon EventId 22 fields to Sigma dns_query field names."""
+    return {
+        "Image": event_data.get("Image", ""),
+        "QueryName": event_data.get("QueryName", ""),
+        "QueryStatus": event_data.get("QueryStatus", ""),
+        "QueryResults": event_data.get("QueryResults", ""),
+        "User": event_data.get("User", ""),
+        "Computer": raw.get("Computer", ""),
+    }
+
+
 def _parse_event_data(raw):
     """Extract EventData from raw EVTX record, same logic as es_mappings."""
     from .adapters import event_data
@@ -119,10 +187,18 @@ def _build_field_map(kind, raw):
     ed = _parse_event_data(raw)
     if kind == "process_creation":
         return _field_map_process_creation(raw, ed)
+    if kind == "sysmon_process_create":
+        return _field_map_sysmon_process_creation(raw, ed)
     if kind in ("logon_success", "logon_failure"):
         return _field_map_logon(raw, ed)
     if kind == "powershell_scriptblock":
         return _field_map_powershell(raw, ed)
+    if kind == "sysmon_network_connect":
+        return _field_map_sysmon_network(raw, ed)
+    if kind == "sysmon_file_create":
+        return _field_map_sysmon_file(raw, ed)
+    if kind == "sysmon_dns_query":
+        return _field_map_sysmon_dns(raw, ed)
     return {}
 
 
@@ -374,7 +450,7 @@ def scan(db_path, rules_dir, case_id=None, progress=None):
 
     rules = load_rules(
         rules_dir,
-        categories={"process_creation", "ps_script"},
+        categories={"process_creation", "ps_script", "network_connection", "file_event", "dns_query"},
         services={"security"},
     )
     progress(f"Loaded {len(rules)} Sigma rules")

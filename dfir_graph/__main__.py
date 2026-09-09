@@ -42,6 +42,19 @@ def main(argv=None):
     serve.add_argument("--port", type=int, default=8765)
     serve.add_argument('--ai-model', help='Enable hypotheses from an installed local Ollama model')
 
+    fs_sources = commands.add_parser("fs-sources", help="List filesystem (MFT/USN) sources")
+    fs_sources.add_argument("--case", default="")
+
+    fs_search = commands.add_parser("fs-search", help="Search filesystem index")
+    fs_search.add_argument("query", nargs="?", default="")
+    fs_search.add_argument("--case", default="")
+    fs_search.add_argument("--path", default="")
+    fs_search.add_argument("--slot", default="created", help="Timestamp slot: created, modified, changed, accessed, usn")
+    fs_search.add_argument("--limit", type=int, default=50)
+
+    fs_evidence = commands.add_parser("fs-evidence", help="Show filesystem record detail")
+    fs_evidence.add_argument("id")
+
     sigma_scan = commands.add_parser("sigma-scan", help="Match Sigma rules against SQLite records")
     sigma_scan.add_argument("--rules", default="vendor/sigma/rules/windows", help="Sigma rules directory")
     sigma_scan.add_argument("--case", default=None, help="Scan only this case")
@@ -99,6 +112,37 @@ def main(argv=None):
                 if libraries.is_dir():
                     sys.path.insert(0, str(libraries))
             result = load_graph(args.db, args.uri, args.user, password, args.database, args.batch_size, progress)
+        elif args.command == "fs-sources":
+            from .filesystem import FileIndex, available, ensure_schema
+            store = Store(args.db, readonly=True)
+            try:
+                if available(store.db):
+                    result = FileIndex(store.db).sources(args.case)
+                else:
+                    result = []
+            finally:
+                store.close()
+        elif args.command == "fs-search":
+            from .filesystem import FileIndex, available
+            store = Store(args.db, readonly=True)
+            try:
+                if not available(store.db):
+                    result = {"items": [], "total": 0, "offset": 0, "limit": 50}
+                else:
+                    result = FileIndex(store.db).search(case=args.case, q=args.query,
+                                path=args.path, slot=args.slot, limit=args.limit)
+            finally:
+                store.close()
+        elif args.command == "fs-evidence":
+            from .filesystem import FileIndex, available
+            store = Store(args.db, readonly=True)
+            try:
+                if not available(store.db):
+                    result = None
+                else:
+                    result = FileIndex(store.db).evidence(args.id)
+            finally:
+                store.close()
         elif args.command == "sigma-scan":
             from .sigma_engine import scan
             result = scan(args.db, args.rules, args.case, progress)

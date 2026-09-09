@@ -11,7 +11,9 @@ ADAPTER_VERSION = "1"
 
 REGISTRY_ADAPTERS = ("amcache_file", "appcompat_cache", "bam", "userassist")
 LINK_ADAPTERS = ("lecmd", "jlecmd_automatic", "jlecmd_custom")
+SRUM_ADAPTERS = ("srum_network", "srum_app")
 ADAPTER_VERSIONS = {name: "3" for name in REGISTRY_ADAPTERS + LINK_ADAPTERS}
+ADAPTER_VERSIONS.update({name: "1" for name in SRUM_ADAPTERS})
 
 
 def classify(header):
@@ -22,6 +24,10 @@ def classify(header):
         return "pecmd"
     if columns == {"RunTime", "ExecutableName"}:
         return "prefetch_timeline_derived"
+    if {"EntryNumber", "SequenceNumber", "ParentEntryNumber", "Created0x10", "ParentPath"} <= columns:
+        return "mftecmd_mft"
+    if {"UpdateTimestamp", "UpdateReasons", "EntryNumber", "SequenceNumber"} <= columns:
+        return "mftecmd_usn"
     if {"FileKeyLastWriteTimestamp", "SHA1", "FullPath", "Name", "IsPeFile"} <= columns:
         return "amcache_file"
     if {"ControlSet", "CacheEntryPosition", "Path", "LastModifiedTimeUTC", "Executed"} <= columns:
@@ -37,6 +43,10 @@ def classify(header):
             return "jlecmd_custom"
         if "NetworkPath" in columns:
             return "lecmd"
+    if {"BytesSent", "BytesRecvd", "InterfaceLuid", "ExeInfo", "Timestamp"} <= columns:
+        return "srum_network"
+    if {"ForegroundCycleTime", "BackgroundCycleTime", "ExeInfo", "Timestamp"} <= columns:
+        return "srum_app"
     return "unsupported"
 
 
@@ -117,7 +127,11 @@ def ingest_evtx(store, source, ordinal, row, options):
     kinds = {("Microsoft-Windows-Security-Auditing", "Security", "4624"): "logon_success",
              ("Microsoft-Windows-Security-Auditing", "Security", "4625"): "logon_failure",
              ("Microsoft-Windows-Security-Auditing", "Security", "4688"): "process_creation",
-             ("Microsoft-Windows-PowerShell", "Microsoft-Windows-PowerShell/Operational", "4104"): "powershell_scriptblock"}
+             ("Microsoft-Windows-PowerShell", "Microsoft-Windows-PowerShell/Operational", "4104"): "powershell_scriptblock",
+             ("Microsoft-Windows-Sysmon", "Microsoft-Windows-Sysmon/Operational", "1"): "sysmon_process_create",
+             ("Microsoft-Windows-Sysmon", "Microsoft-Windows-Sysmon/Operational", "3"): "sysmon_network_connect",
+             ("Microsoft-Windows-Sysmon", "Microsoft-Windows-Sysmon/Operational", "11"): "sysmon_file_create",
+             ("Microsoft-Windows-Sysmon", "Microsoft-Windows-Sysmon/Operational", "22"): "sysmon_dns_query"}
     kind = kinds.get((provider, channel, event_id), "evtx_other")
     record_id = insert_record(store, source, ordinal, row, kind, host, scope, row.get("TimeCreated"), options["time_zone"])
     if kind == "evtx_other":
@@ -187,6 +201,93 @@ def ingest_evtx(store, source, ordinal, row, options):
         path = project.path(data.get("Path"))
         if path:
             project.edge(script, path, "REPORTED_SCRIPT_PATH")
+    elif kind == "sysmon_process_create":
+        pid = pid_number(data.get("ProcessId"))
+        image = data.get("Image", "")
+        if pid is None or not meaningful(image):
+            store.issue(project.case, source["id"], record_id, "missing_process_identity",
+                        "Sysmon EventId 1 requires ProcessId and Image")
+            return
+        process = project.node("ProcessInstance", record_id,
+                               ntpath.basename(image) + " · PID " + str(pid),
+                               {"host": host, "pid": pid, "creation_record": record_id,
+                                "created_raw": row.get("TimeCreated", ""), "scope": scope,
+                                "image_path": image, "command_line": data.get("CommandLine", ""),
+                                "hashes": data.get("Hashes", ""),
+                                "integrity_level": data.get("IntegrityLevel", ""),
+                                "user": data.get("User", "")})
+        project.edge(obs, process, "RECORDS_CREATION")
+        path = project.path(image)
+        project.edge(process, path, "IMAGE_PATH")
+        parent_pid = pid_number(data.get("ParentProcessId"))
+        if parent_pid is not None:
+            parent = project.node("ProcessReference", [record_id, "parent"],
+                                  (ntpath.basename(data.get("ParentImage") or "unknown") + " · parent PID " + str(parent_pid)),
+                                  {"host": host, "pid": parent_pid, "reported_path": data.get("ParentImage", ""),
+                                   "command_line": data.get("ParentCommandLine", ""),
+                                   "resolved": False, "reason": "PID reuse possible; parent retained as reference"})
+            project.edge(process, parent, "REPORTED_PARENT")
+            parent_path = project.path(data.get("ParentImage"))
+            if parent_path:
+                project.edge(parent, parent_path, "REPORTED_IMAGE_PATH")
+            store.issue(project.case, source["id"], record_id, "unresolved_parent_instance",
+                        "Parent PID retained as a reference; not merged with another execution")
+    elif kind == "sysmon_network_connect":
+        import ipaddress
+        image = data.get("Image", "")
+        dst_ip = data.get("DestinationIp", "")
+        dst_port = data.get("DestinationPort", "")
+        protocol = data.get("Protocol", "")
+        if meaningful(image):
+            path = project.path(image)
+            if path:
+                project.edge(obs, path, "INITIATED_CONNECTION",
+                             {"pid": data.get("ProcessId", ""), "user": data.get("User", "")})
+        if meaningful(dst_ip):
+            try:
+                dst_addr = str(ipaddress.ip_address(dst_ip))
+                dst = project.node("IPAddress", dst_addr, dst_addr, {"address": dst_addr})
+                project.edge(obs, dst, "CONNECTED_TO",
+                             {"port": dst_port, "protocol": protocol,
+                              "hostname": data.get("DestinationHostname", "")})
+            except ValueError:
+                store.issue(project.case, source["id"], record_id, "invalid_ip_address",
+                            "Destination address could not be normalized")
+        src_ip = data.get("SourceIp", "")
+        if meaningful(src_ip):
+            try:
+                src_addr = str(ipaddress.ip_address(src_ip))
+                src = project.node("IPAddress", src_addr, src_addr, {"address": src_addr})
+                project.edge(obs, src, "CONNECTION_SOURCE",
+                             {"port": data.get("SourcePort", "")})
+            except ValueError:
+                pass
+    elif kind == "sysmon_file_create":
+        image = data.get("Image", "")
+        target = data.get("TargetFilename", "")
+        if meaningful(image):
+            path = project.path(image)
+            if path:
+                project.edge(obs, path, "CREATION_PROCESS",
+                             {"pid": data.get("ProcessId", ""), "user": data.get("User", "")})
+        if meaningful(target):
+            target_path = project.path(target)
+            if target_path:
+                project.edge(obs, target_path, "REPORTS_FILE_CREATION")
+    elif kind == "sysmon_dns_query":
+        image = data.get("Image", "")
+        query_name = data.get("QueryName", "")
+        if meaningful(image):
+            path = project.path(image)
+            if path:
+                project.edge(obs, path, "DNS_QUERY_PROCESS",
+                             {"pid": data.get("ProcessId", ""), "user": data.get("User", "")})
+        if meaningful(query_name):
+            dns = project.node("DNSQuery", [host, query_name], query_name,
+                               {"host": host, "query_name": query_name,
+                                "query_results": data.get("QueryResults", ""),
+                                "meaning": "DNS lookup record; not proof of connection"})
+            project.edge(obs, dns, "REPORTS_DNS_QUERY")
 
 
 def ingest_prefetch(store, source, ordinal, row, options):
@@ -364,3 +465,54 @@ def ingest_link(store, source, ordinal, row, options):
                               {"time_kind": meaning, "slot": slot, "executable_name": ntpath.basename(target) or kind,
                                "artifact_path": row.get("SourceFile", ""), "target_reported": target}, slot)
         project.edge(obs, entry, "RECORDS_LINK_METADATA")
+
+
+# ---------------------------------------------------------------------------
+# SRUM (System Resource Usage Monitor) adapters
+# ---------------------------------------------------------------------------
+
+def ingest_srum_network(store, source, ordinal, row, options):
+    host = options.get("host") or "unresolved:" + source["id"]
+    scope = "C"
+    time_value = row.get("Timestamp")
+    record_id = insert_record(store, source, ordinal, row, "srum_network_usage", host, scope, time_value, options["time_zone"])
+    exe_info = row.get("ExeInfo", "").strip()
+    if not exe_info:
+        return
+    project = Projection(store, source["case_id"], source["id"], host, scope, record_id, source["node_id"])
+    obs = project.observe("srum_network_usage", time_value, options["time_zone"],
+                          {"time_kind": "srum_recorded_interval",
+                           "executable_name": ntpath.basename(exe_info),
+                           "bytes_sent": row.get("BytesSent", ""),
+                           "bytes_received": row.get("BytesRecvd", ""),
+                           "interface_type": row.get("InterfaceType", "")})
+    ref = program_reference(project, exe_info)
+    if ref:
+        project.edge(obs, ref, "RECORDS_NETWORK_USAGE")
+    sid = row.get("Sid", "")
+    account = project.account(sid)
+    if account:
+        project.edge(obs, account, "SRUM_ACCOUNT", {"reported_name": row.get("UserName", "")})
+
+
+def ingest_srum_app(store, source, ordinal, row, options):
+    host = options.get("host") or "unresolved:" + source["id"]
+    scope = "C"
+    time_value = row.get("Timestamp")
+    record_id = insert_record(store, source, ordinal, row, "srum_app_usage", host, scope, time_value, options["time_zone"])
+    exe_info = row.get("ExeInfo", "").strip()
+    if not exe_info:
+        return
+    project = Projection(store, source["case_id"], source["id"], host, scope, record_id, source["node_id"])
+    obs = project.observe("srum_app_usage", time_value, options["time_zone"],
+                          {"time_kind": "srum_recorded_interval",
+                           "executable_name": ntpath.basename(exe_info),
+                           "foreground_cycle_time": row.get("ForegroundCycleTime", ""),
+                           "background_cycle_time": row.get("BackgroundCycleTime", "")})
+    ref = program_reference(project, exe_info)
+    if ref:
+        project.edge(obs, ref, "RECORDS_APP_USAGE")
+    sid = row.get("Sid", "")
+    account = project.account(sid)
+    if account:
+        project.edge(obs, account, "SRUM_ACCOUNT", {"reported_name": row.get("UserName", "")})

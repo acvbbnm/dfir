@@ -451,18 +451,37 @@ CLI 명령:
 - 39개 고유 규칙 매칭 (Credential Dumping, Pass the Hash, PowerShell 악용 등)
 - 멱등 실행: 재스캔 시 중복 없음 (`INSERT OR IGNORE`)
 
-### 5.4 Phase 4: 다중 데이터 소스 확장
+### 5.4 Phase 4: 다중 데이터 소스 확장 ✅ 구현·검증 완료 (2026-09-09)
 
-현재 KAPE CSV만 입력받지만, 아래 소스를 단계적으로 추가한다.
+KAPE CSV에 더해 아래 소스를 단계적으로 추가한다.
 
 | 우선순위 | 소스 | 어댑터 이름 | 비고 |
 |---------|------|-----------|------|
-| 1 | MFT/USN (MFTECmd 출력) | mftecmd_mft, mftecmd_usn | filesystem.py 이미 구현, 통합 필요 |
-| 2 | Sysmon EVTX (EvtxECmd 출력) | evtxecmd (기존 확장) | EventId 1,3,7,11 등 추가 |
-| 3 | SRUM/SUM (SrumECmd 출력) | srum_network, srum_app | 네트워크 사용량·앱 실행 이력 |
-| 4 | Windows Event Forwarding | wef_evtx | 다중 호스트 수집 |
-| 5 | Linux auditd | auditd_log | 새 파서 필요 |
-| 6 | 네트워크 패킷 (Zeek 로그) | zeek_conn, zeek_dns | 네트워크 계층 관계 |
+| 1 | MFT/USN (MFTECmd 출력) | mftecmd_mft, mftecmd_usn | ✅ pipeline 통합, classify + fs CLI/API |
+| 2 | Sysmon EVTX (EvtxECmd 출력) | evtxecmd (기존 확장) | ✅ EventId 1,3,11,22 추가 |
+| 3 | SRUM/SUM (SrumECmd 출력) | srum_network, srum_app | ✅ 네트워크 사용량·앱 실행 이력 |
+| 4 | Windows Event Forwarding | wef_evtx | 다중 호스트 수집 (미구현) |
+| 5 | Linux auditd | auditd_log | 새 파서 필요 (미구현) |
+| 6 | 네트워크 패킷 (Zeek 로그) | zeek_conn, zeek_dns | 네트워크 계층 관계 (미구현) |
+
+#### 5.4.1 구현 결과
+
+**Priority 1 — MFT/USN**: `filesystem.py`의 `ingest_rows()`를 `pipeline.py`에 통합. `classify()`에 MFT/USN CSV 헤더 패턴 추가. CLI 3종(`fs-sources`, `fs-search`, `fs-evidence`)과 뷰어 API 3종(`/api/filesystem/sources`, `/api/filesystem/search`, `/api/filesystem/evidence`) 추가.
+
+**Priority 2 — Sysmon EVTX**: `ingest_evtx()`에 Sysmon 이벤트 4종 추가:
+- EventId 1 (Process Create): `sysmon_process_create` — ProcessInstance 노드, 부모 프로세스 참조, 해시·무결성 수준 보존
+- EventId 3 (Network Connect): `sysmon_network_connect` — IPAddress 노드, CONNECTED_TO/CONNECTION_SOURCE 엣지
+- EventId 11 (File Create): `sysmon_file_create` — 생성 프로세스·대상 파일 경로 연결
+- EventId 22 (DNS Query): `sysmon_dns_query` — DNSQuery 노드, 쿼리 이름·결과 보존
+
+새 노드 라벨: `DNSQuery`
+새 엣지 타입: `INITIATED_CONNECTION`, `CONNECTED_TO`, `CONNECTION_SOURCE`, `CREATION_PROCESS`, `REPORTS_FILE_CREATION`, `DNS_QUERY_PROCESS`, `REPORTS_DNS_QUERY`, `RECORDS_NETWORK_USAGE`, `RECORDS_APP_USAGE`, `SRUM_ACCOUNT`
+
+**Priority 3 — SRUM**: `ingest_srum_network()`과 `ingest_srum_app()` 어댑터 추가. SrumECmd의 NetworkUsages/AppResourceUseInfo CSV 자동 분류. 네트워크 사용량과 앱 실행 이력을 시간축에 배치.
+
+**Sigma 매칭 확장**: Sysmon 이벤트 4종에 대한 필드 매핑 추가. `network_connection`, `file_event`, `dns_query` 로그소스 카테고리 지원.
+
+**검증**: 75개 테스트 통과 (기존 54 + Phase 4 신규 21)
 
 #### 새 어댑터 작성 규칙
 
@@ -530,16 +549,18 @@ Phase 1: Elasticsearch 동기화·조회          구현 (ES 뷰어 전환은 �
     │
     ├──→ Phase 3: Sigma 규칙 ✅ 구현·검증 완료
     │
-    └──→ Phase 4: 다중 데이터 소스 (Phase 1 완료 — ES 스케일 활용 가능)
+    └──→ Phase 4: 다중 데이터 소스 ✅ 구현·검증 완료
               │
-              └──→ Phase 5: 다중 호스트 상관 (Phase 4 완료 후)
+              └──→ Phase 5: 다중 호스트 상관 (Phase 4 완료 — 다음 단계)
 ```
 
 **Phase 1의 동기화·조회 구현**: `es_store.py` + `es_mappings.py` 구현, SQLite→ES 동기화, ECS 필드 매핑, CLI 명령 3종 추가. Kibana에서 데이터 뷰 조회 확인 완료.
 
 **Phase 2 (그래프 시각화)**는 SQLite 백엔드에서 구현·검증했다.
 
-**Phase 3 (Sigma 매칭)**은 `sigma_engine.py`로 구현했다. 1,494개 규칙 로딩, process_creation/ps_script/security 로그소스 지원, 공격 샘플 134건에서 125건 탐지 (39개 고유 규칙). 다음은 Phase 4 다중 소스이다.
+**Phase 3 (Sigma 매칭)**은 `sigma_engine.py`로 구현했다. 1,494개 규칙 로딩, process_creation/ps_script/security 로그소스 지원, 공격 샘플 134건에서 125건 탐지 (39개 고유 규칙).
+
+**Phase 4 (다중 소스)**는 우선순위 1~3 구현 완료. MFT/USN 파이프라인 통합, Sysmon EVTX 4종(EventId 1,3,11,22), SRUM 네트워크/앱 어댑터. Sigma 매칭도 Sysmon 이벤트까지 확장. 다음은 Phase 5 다중 호스트 상관이다.
 
 ---
 
@@ -579,7 +600,7 @@ cd C:\Users\SBA_USER\Desktop\evidence-atlas
 python -m unittest discover -s tests -v
 ```
 
-현재 54개 테스트 통과. 새 기능 추가 시 반드시 테스트를 함께 작성한다.
+현재 75개 테스트 통과. 새 기능 추가 시 반드시 테스트를 함께 작성한다.
 
 테스트 범위:
 - 반복 적재 시 중복 없음
