@@ -1,0 +1,50 @@
+{
+  "scenario_id": "S0",
+  "name": "baseline_normal_traffic",
+  "description": "정상 사용자 활동 — 베이스라인 수립 및 오탐 기준선",
+  "category": "baseline",
+  "severity": "info",
+  "mitre_tactics": [],
+  "prerequisites": ["WordPress 정상 가동", "Elastic Agent 수집 중", "WAF Count 모드"],
+  "actor": "mng-mint (정상 사용자)",
+  "steps": [
+    {
+      "step": 1,
+      "action": "WordPress 로그인",
+      "command": "curl -c cookies.txt -d 'log=editor01&pwd=NORMAL_PASS&wp-submit=Log+In' https://ALB_DNS/wp-login.php",
+      "expected": "302 redirect to wp-admin"
+    },
+    {
+      "step": 2,
+      "action": "게시글 작성",
+      "command": "wp post create --post_title='월간 보고서' --post_status=publish --user=editor01",
+      "expected": "Success: Created post ID"
+    },
+    {
+      "step": 3,
+      "action": "미디어 업로드",
+      "command": "wp media import /tmp/test-image.jpg --user=editor01",
+      "expected": "Success: Imported file"
+    },
+    {
+      "step": 4,
+      "action": "정상 페이지 탐색 (10회)",
+      "command": "for i in $(seq 1 10); do curl -b cookies.txt https://ALB_DNS/?p=$i; done",
+      "expected": "200 OK 반복"
+    }
+  ],
+  "expected_evidence": {
+    "waf": ["ALLOW 로그 (Count 모드이므로 모든 요청 기록)"],
+    "nginx": ["200 응답 access.log 엔트리"],
+    "apache": ["200 응답 access.log"],
+    "wordpress_audit": ["login_success", "post_created", "media_uploaded"],
+    "elastic_defend": ["process 이벤트 (정상 패턴)"],
+    "auditd": ["execve 이벤트 (정상 명령)"],
+    "flow_logs": ["ACCEPT 엔트리"],
+    "suricata": ["빈 alert 또는 정상 트래픽만"],
+    "cloudtrail": ["정상 API 호출 (DescribeInstances 등)"],
+    "rds": ["SELECT/INSERT slow query 없음"]
+  },
+  "detection_rules": [],
+  "success_criteria": "모든 로그 소스에서 정상 이벤트만 기록, alert 0건"
+}

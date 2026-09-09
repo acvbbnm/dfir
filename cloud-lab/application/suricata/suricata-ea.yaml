@@ -1,0 +1,72 @@
+%YAML 1.1
+---
+
+vars:
+  address-groups:
+    HOME_NET: "[10.60.0.0/16]"
+    EXTERNAL_NET: "!$HOME_NET"
+    HTTP_SERVERS: "[10.60.2.0/24]"
+    SQL_SERVERS: "[10.60.4.0/24]"
+
+  port-groups:
+    HTTP_PORTS: "[8080]"
+    SQL_PORTS: "[3306]"
+
+default-rule-path: /etc/suricata/rules
+
+rule-files:
+  - suricata.rules
+  - local.rules
+
+nfq:
+  - mode: accept
+    id: 0
+    fail-open: yes
+
+outputs:
+  - eve-log:
+      enabled: yes
+      filetype: regular
+      filename: /var/log/suricata/eve.json
+      rotate-interval: day
+      types:
+        - alert:
+            tagged-packets: yes
+            metadata: yes
+        - http:
+            extended: yes
+        - dns
+        - tls:
+            extended: yes
+        - flow
+        - stats:
+            enabled: yes
+            totals: yes
+            threads: no
+            deltas: yes
+
+  - fast:
+      enabled: no
+
+logging:
+  default-log-level: info
+  outputs:
+    - console:
+        enabled: no
+    - file:
+        enabled: yes
+        filename: /var/log/suricata/suricata.log
+        level: info
+
+app-layer:
+  protocols:
+    http:
+      enabled: yes
+    tls:
+      enabled: yes
+    dns:
+      enabled: yes
+
+detect:
+  profile: medium
+  sgh-mpm-context: auto

@@ -1,0 +1,195 @@
+{
+  "Comment": "EA 증거 수집 워크플로 v1.0",
+  "StartAt": "ValidateInput",
+  "TimeoutSeconds": 1800,
+  "States": {
+
+    "ValidateInput": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${region}:${security_account_id}:function:${project}-validate-case",
+      "Parameters": {
+        "case_id.$": "$.case_id",
+        "trigger.$": "$.trigger",
+        "target.$": "$.target"
+      },
+      "ResultPath": "$.validation",
+      "Next": "IsValid",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "RecordFailure"
+        }
+      ]
+    },
+
+    "IsValid": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.validation.status",
+          "StringEquals": "VALID",
+          "Next": "PreserveMetadata"
+        },
+        {
+          "Variable": "$.validation.status",
+          "StringEquals": "DUPLICATE",
+          "Next": "SkipDuplicate"
+        }
+      ],
+      "Default": "RecordFailure"
+    },
+
+    "PreserveMetadata": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${region}:${security_account_id}:function:${project}-preserve-metadata",
+      "Parameters": {
+        "case_id.$": "$.case_id",
+        "target.$": "$.target"
+      },
+      "ResultPath": "$.metadata",
+      "TimeoutSeconds": 120,
+      "Next": "ParallelCollection",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.metadata_error",
+          "Next": "ParallelCollection"
+        }
+      ]
+    },
+
+    "ParallelCollection": {
+      "Type": "Parallel",
+      "Branches": [
+        {
+          "StartAt": "CollectAWSLogs",
+          "States": {
+            "CollectAWSLogs": {
+              "Type": "Task",
+              "Resource": "arn:aws:lambda:${region}:${security_account_id}:function:${project}-collect-aws-logs",
+              "Parameters": {
+                "case_id.$": "$.case_id",
+                "target.$": "$.target",
+                "time_window_minutes": 15
+              },
+              "TimeoutSeconds": 300,
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "CheckHostTarget",
+          "States": {
+            "CheckHostTarget": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.target.instance_id",
+                  "IsPresent": true,
+                  "Next": "TriggerHostCollection"
+                }
+              ],
+              "Default": "SkipHost"
+            },
+            "TriggerHostCollection": {
+              "Type": "Task",
+              "Resource": "arn:aws:lambda:${region}:${security_account_id}:function:${project}-trigger-host-collection",
+              "Parameters": {
+                "case_id.$": "$.case_id",
+                "instance_id.$": "$.target.instance_id"
+              },
+              "TimeoutSeconds": 600,
+              "End": true
+            },
+            "SkipHost": {
+              "Type": "Pass",
+              "Result": { "skipped": true, "reason": "no_instance_id" },
+              "End": true
+            }
+          }
+        }
+      ],
+      "ResultPath": "$.collection_results",
+      "Next": "VerifyIntegrity",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.collection_error",
+          "Next": "VerifyIntegrity"
+        }
+      ]
+    },
+
+    "VerifyIntegrity": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${region}:${security_account_id}:function:${project}-verify-finalize",
+      "Parameters": {
+        "case_id.$": "$.case_id",
+        "collection_results.$": "$.collection_results"
+      },
+      "ResultPath": "$.verification",
+      "TimeoutSeconds": 120,
+      "Next": "FinalStatus",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.verify_error",
+          "Next": "CaseFailed"
+        }
+      ]
+    },
+
+    "FinalStatus": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.verification.integrity",
+          "StringEquals": "PASS",
+          "Next": "CaseReady"
+        },
+        {
+          "Variable": "$.verification.integrity",
+          "StringEquals": "PARTIAL",
+          "Next": "CasePartial"
+        }
+      ],
+      "Default": "CaseFailed"
+    },
+
+    "CaseReady": {
+      "Type": "Pass",
+      "Result": "READY",
+      "ResultPath": "$.final_status",
+      "End": true
+    },
+
+    "CasePartial": {
+      "Type": "Pass",
+      "Result": "PARTIAL",
+      "ResultPath": "$.final_status",
+      "End": true
+    },
+
+    "CaseFailed": {
+      "Type": "Pass",
+      "Result": "FAILED",
+      "ResultPath": "$.final_status",
+      "End": true
+    },
+
+    "SkipDuplicate": {
+      "Type": "Pass",
+      "Result": "DUPLICATE",
+      "ResultPath": "$.final_status",
+      "End": true
+    },
+
+    "RecordFailure": {
+      "Type": "Pass",
+      "Result": "VALIDATION_FAILED",
+      "ResultPath": "$.final_status",
+      "End": true
+    }
+  }
+}

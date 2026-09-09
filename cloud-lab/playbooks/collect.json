@@ -1,0 +1,41 @@
+{
+  "playbook": "collect_only",
+  "version": "1.0",
+  "description": "증거 수집만 수행, 격리/대응 없음",
+  "trigger": {
+    "mode": "auto",
+    "conditions": ["severity in [high, critical]", "target.type in [ec2, iam, s3]"]
+  },
+  "steps": [
+    {
+      "name": "validate",
+      "action": "lambda:ea-validate-case",
+      "on_failure": "abort"
+    },
+    {
+      "name": "preserve_metadata",
+      "action": "lambda:ea-preserve-metadata",
+      "on_failure": "continue_with_warning"
+    },
+    {
+      "name": "collect_aws_logs",
+      "action": "lambda:ea-collect-aws-logs",
+      "parallel": true,
+      "params": { "time_window_minutes": 15 }
+    },
+    {
+      "name": "collect_host",
+      "action": "lambda:ea-trigger-host-collection",
+      "parallel": true,
+      "condition": "target.instance_id is not null",
+      "params": { "profile": "standard" }
+    },
+    {
+      "name": "verify_finalize",
+      "action": "lambda:ea-verify-finalize",
+      "on_failure": "mark_partial"
+    }
+  ],
+  "final_states": ["READY", "PARTIAL", "FAILED"],
+  "timeout_seconds": 1800
+}

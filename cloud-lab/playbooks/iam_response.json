@@ -1,0 +1,61 @@
+{
+  "playbook": "iam_response",
+  "version": "1.0",
+  "description": "IAM/STS 세션 취소 + inline deny 정책 적용",
+  "prerequisite": "의심 role/session 확인",
+  "steps": [
+    {
+      "name": "preserve_iam_state",
+      "actions": [
+        "IAM GetRole → before_role.json",
+        "IAM ListRolePolicies + ListAttachedRolePolicies → before_policies.json",
+        "STS GetCallerIdentity (의심 세션) → session_info.json"
+      ]
+    },
+    {
+      "name": "revoke_sessions",
+      "action": "IAM PutRolePolicy (AWSRevokeOlderSessions)",
+      "description": "현재 시점 이전 발급 토큰 무효화",
+      "params": {
+        "policy_name": "ea-revoke-sessions",
+        "policy_document": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Deny",
+              "Action": "*",
+              "Resource": "*",
+              "Condition": {
+                "DateLessThan": {
+                  "aws:TokenIssueTime": "CURRENT_TIMESTAMP"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "note": "instance profile 분리만으로 기존 토큰이 즉시 무효화되지 않음"
+    },
+    {
+      "name": "verify_revocation",
+      "verify": [
+        "의심 role의 기존 임시 자격증명으로 API 호출 → AccessDenied",
+        "새로 발급된 자격증명은 거부 정책에 막히지 않음 (시간 조건)",
+        "수집용 역할은 영향 없음 확인"
+      ]
+    },
+    {
+      "name": "optional_inline_deny",
+      "condition": "추가 제한이 필요한 경우",
+      "action": "IAM PutRolePolicy (ea-emergency-deny)",
+      "params": {
+        "deny_actions": ["s3:*", "secretsmanager:*", "ec2:RunInstances"],
+        "note": "범위를 최소화하여 수집 경로에 영향을 주지 않음"
+      }
+    }
+  ],
+  "record": {
+    "save_to": "cases/{case_id}/response/iam_response.json",
+    "fields": ["before_state", "revoke_timestamp", "verify_results", "executed_at"]
+  }
+}

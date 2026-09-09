@@ -1,0 +1,28 @@
+[Unit]
+Description=EA Alert Collector — ES Security 경보 → EventBridge
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ea-collector
+Group=ea-collector
+ExecStart=/usr/bin/python3 /opt/ea-collectors/alert_collector.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ea-alert-collector
+
+EnvironmentFile=/etc/ea-collector/env
+WorkingDirectory=/opt/ea-collectors
+
+# 보안 제한
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/ea-collector
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

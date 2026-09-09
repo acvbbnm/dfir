@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "EA Scenario Answer Record",
+  "description": "공격/방어 시나리오 정답 기록",
+  "type": "object",
+  "required": ["scenario_id", "run_id", "executed_at", "targets", "expected_evidence"],
+  "properties": {
+    "scenario_id": {
+      "type": "string",
+      "pattern": "^S[0-6]$"
+    },
+    "run_id": {
+      "type": "string",
+      "description": "실행 고유 ID (날짜+순번)"
+    },
+    "executed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "pre_state": {
+      "type": "object",
+      "description": "실행 전 상태 (정책 버전, 데이터 상태, WAF 모드 등)"
+    },
+    "targets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["resource_type", "resource_id"],
+        "properties": {
+          "resource_type": { "type": "string" },
+          "resource_id": { "type": "string" },
+          "allowed_actions": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["step", "command", "expected_result"],
+        "properties": {
+          "step": { "type": "integer" },
+          "command": { "type": "string", "description": "실행한 명령/요청" },
+          "expected_result": { "type": "string", "enum": ["success", "blocked", "partial"] },
+          "actual_result": { "type": "string" },
+          "response_snippet": { "type": "string" },
+          "timestamp": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+    "expected_evidence": {
+      "type": "object",
+      "description": "각 소스에서 남아야 하는 로그/이벤트",
+      "properties": {
+        "waf": { "type": "array", "items": { "type": "string" } },
+        "suricata": { "type": "array", "items": { "type": "string" } },
+        "cloudtrail": { "type": "array", "items": { "type": "string" } },
+        "elastic_defend": { "type": "array", "items": { "type": "string" } },
+        "nginx": { "type": "array", "items": { "type": "string" } },
+        "apache": { "type": "array", "items": { "type": "string" } },
+        "wordpress_audit": { "type": "array", "items": { "type": "string" } },
+        "auditd": { "type": "array", "items": { "type": "string" } },
+        "rds": { "type": "array", "items": { "type": "string" } },
+        "flow_logs": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "detection_rules": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "이 시나리오에서 발화해야 하는 탐지 규칙 ID"
+    },
+    "policy_versions": {
+      "type": "object",
+      "description": "실행 시점 WAF/Suricata/auditd 정책 버전·해시"
+    }
+  }
+}

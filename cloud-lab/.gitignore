@@ -1,0 +1,41 @@
+# OpenTofu / Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+.terraform.lock.hcl
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Secrets
+*.pem
+*.key
+secrets.json
+credentials.json
+.env
+.env.*
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Lambda packaging
+lambda_*.zip
+
+# Evidence / state (never commit)
+results/*.json
+results/*.log
+!results/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db

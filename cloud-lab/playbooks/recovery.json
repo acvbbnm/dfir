@@ -1,0 +1,56 @@
+{
+  "playbook": "recovery",
+  "version": "1.0",
+  "description": "격리 해제 + 정상 서비스 복구",
+  "prerequisite": "containment/iam_response 완료, 분석가 승인",
+  "steps": [
+    {
+      "name": "check_post_containment_changes",
+      "description": "격리 이후 다른 변경이 있었는지 확인",
+      "actions": [
+        "현재 SG 규칙과 before_sg.json 비교",
+        "현재 IAM 정책과 before_policies.json 비교",
+        "충돌이 있으면 수동 판단"
+      ]
+    },
+    {
+      "name": "restore_security_groups",
+      "action": "EC2 ModifyInstanceAttribute",
+      "params": { "groups": "before_sg.json의 원래 SG 목록" },
+      "verify": "DescribeInstances → SG 일치"
+    },
+    {
+      "name": "remove_emergency_policies",
+      "actions": [
+        "IAM DeleteRolePolicy (ea-revoke-sessions)",
+        "IAM DeleteRolePolicy (ea-emergency-deny) — 있는 경우"
+      ],
+      "verify": "ListRolePolicies → 긴급 정책 없음"
+    },
+    {
+      "name": "register_to_alb",
+      "action": "ALB RegisterTargets",
+      "verify": "DescribeTargetHealth → healthy"
+    },
+    {
+      "name": "verify_service",
+      "verify": [
+        "ALB → WEB → APP → RDS 전체 경로 HTTP 200",
+        "Agent → SOC 정상 수집 재개",
+        "정상 사용자 로그인 성공",
+        "canary 요청 정상 응답"
+      ]
+    },
+    {
+      "name": "verify_no_residual_access",
+      "verify": [
+        "이전 공격 경로로 재시도 → 차단 확인",
+        "의심 계정/세션 비활성 확인"
+      ]
+    }
+  ],
+  "record": {
+    "save_to": "cases/{case_id}/response/recovery.json",
+    "fields": ["before_recovery_state", "actions_taken", "verify_results", "service_restored_at"]
+  }
+}

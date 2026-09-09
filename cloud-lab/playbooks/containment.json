@@ -1,0 +1,54 @@
+{
+  "playbook": "network_containment",
+  "version": "1.0",
+  "description": "네트워크 격리 — SG 교체 + ALB 등록 해제",
+  "prerequisite": "collect_only 완료 또는 긴급 판단",
+  "steps": [
+    {
+      "name": "preserve_current_state",
+      "actions": [
+        "EC2 DescribeInstances → before_sg.json 저장",
+        "ALB DescribeTargetHealth → before_alb.json 저장",
+        "ENI DescribeNetworkInterfaces → before_eni.json 저장"
+      ]
+    },
+    {
+      "name": "deregister_from_alb",
+      "action": "ALB DeregisterTargets",
+      "params": { "target_group_arn": "from_lab_outputs", "target_id": "instance_id" },
+      "verify": "DescribeTargetHealth → draining/unused"
+    },
+    {
+      "name": "apply_isolation_sg",
+      "action": "EC2 ModifyInstanceAttribute",
+      "params": { "groups": ["sg-isolation (SSM + S3 only)"] },
+      "verify": [
+        "새 SSH/HTTP 연결 → 거부",
+        "SSM Session Manager → 성공",
+        "S3 endpoint → 성공"
+      ]
+    },
+    {
+      "name": "check_tracked_connections",
+      "description": "SG 변경 후에도 기존 TCP 연결이 유지될 수 있음",
+      "verify": [
+        "대상→RDS 기존 연결 확인 (netstat/ss)",
+        "유지되면 OS iptables로 추가 차단"
+      ],
+      "fallback": "PARTIAL_CONTAINMENT 기록"
+    },
+    {
+      "name": "verify_management_path",
+      "verify": [
+        "SSM 세션 가능",
+        "Agent→SOC 통신 확인 (수집 계속)",
+        "S3 업로드 가능"
+      ],
+      "on_failure": "관리 통신 단절 → PARTIAL_CONTAINMENT"
+    }
+  ],
+  "record": {
+    "save_to": "cases/{case_id}/response/containment.json",
+    "fields": ["before_state", "actions_taken", "verify_results", "final_status", "executed_at", "executed_by"]
+  }
+}

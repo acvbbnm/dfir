@@ -1,0 +1,97 @@
+{
+  "scenario_id": "S6",
+  "name": "full_killchain",
+  "description": "전체 킬체인 — S1~S5 연결 + 격리 대응 + 복구",
+  "category": "full_exercise",
+  "severity": "critical",
+  "mitre_tactics": [
+    "TA0043-Reconnaissance", "TA0001-Initial Access",
+    "TA0006-Credential Access", "TA0002-Execution",
+    "TA0003-Persistence", "TA0004-Privilege Escalation",
+    "TA0005-Defense Evasion", "TA0009-Collection",
+    "TA0010-Exfiltration", "TA0040-Impact"
+  ],
+  "prerequisites": ["전체 인프라 가동", "모든 로그 파이프라인 정상", "collect 플레이북 검증 완료"],
+  "actor": "외부 공격자 → 내부 횡이동",
+  "phases": [
+    {
+      "phase": "recon",
+      "scenarios": ["S1"],
+      "duration_minutes": 15,
+      "description": "웹 스캐닝, 사용자 열거"
+    },
+    {
+      "phase": "initial_access",
+      "scenarios": ["S2"],
+      "duration_minutes": 20,
+      "description": "로그인 브루트포스 → 계정 탈취"
+    },
+    {
+      "phase": "exploitation",
+      "scenarios": ["S3"],
+      "duration_minutes": 15,
+      "description": "SQLi로 DB 데이터 유출"
+    },
+    {
+      "phase": "persistence",
+      "scenarios": ["S4"],
+      "duration_minutes": 15,
+      "description": "웹셸 배치 + 명령 실행"
+    },
+    {
+      "phase": "escalation",
+      "scenarios": ["S5"],
+      "duration_minutes": 15,
+      "description": "IAM 자격증명 탈취 + 권한 상승 시도"
+    },
+    {
+      "phase": "detection_response",
+      "duration_minutes": 30,
+      "description": "SOC 탐지 확인 + 자동 증거 수집 검증",
+      "steps": [
+        "Elastic alert 목록 확인",
+        "자동 생성된 케이스 검증 (DynamoDB)",
+        "S3 evidence 버킷 산출물 확인",
+        "증거 무결성 manifest 검증"
+      ]
+    },
+    {
+      "phase": "containment",
+      "duration_minutes": 20,
+      "description": "네트워크 격리 + IAM 세션 취소",
+      "playbooks": ["containment", "iam_response"],
+      "steps": [
+        "containment 플레이북 실행",
+        "격리 SG 적용 확인",
+        "iam_response 플레이북 실행",
+        "세션 토큰 무효화 확인"
+      ]
+    },
+    {
+      "phase": "recovery",
+      "duration_minutes": 20,
+      "description": "서비스 복구 + 검증",
+      "playbooks": ["recovery"],
+      "steps": [
+        "recovery 플레이북 실행",
+        "서비스 정상 가동 확인",
+        "공격 경로 재시도 → 차단 확인",
+        "전체 로그 타임라인 구성"
+      ]
+    }
+  ],
+  "expected_evidence": {
+    "waf": ["S1-S4 전체 WAF 로그"],
+    "suricata": ["SID 9000001-9000006 전체"],
+    "cloudtrail": ["S5 전체 API 호출 + 대응 API 호출"],
+    "elastic_defend": ["파일/프로세스/네트워크 이벤트 전체"],
+    "nginx": ["전체 access/error 로그"],
+    "apache": ["전체 access/error 로그"],
+    "wordpress_audit": ["전체 감사 로그"],
+    "auditd": ["전체 감사 로그"],
+    "rds": ["slow/error 로그"],
+    "flow_logs": ["전체 VPC 플로우 로그"]
+  },
+  "detection_rules": ["전체 (S1-S5 모든 룰)"],
+  "success_criteria": "전체 킬체인 실행 → 탐지 → 자동 수집 → 대응 → 복구 사이클 완료, 타임라인 그래프 생성"
+}

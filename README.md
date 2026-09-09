@@ -10,10 +10,37 @@ KAPE **Modules CSV 결과**를 읽어 원래 레코드와 출처를 SQLite에 �
 - [ ] Phase 1의 ES 직접 수집·백엔드 선택·ES 기반 시간축/웹 뷰어
 - [x] Phase 2: 시간축에서 1~2단계 그래프 탐색·근거 확인·시간축 복귀
 - [x] Phase 3: Sigma 매칭 — 1,494규칙 로딩, 필드 매핑, 조건 평가, detections 테이블, CLI 3종
-- [x] Phase 4: 다중 소스 — MFT/USN 파이프라인 통합, Sysmon EVTX 4종(1,3,11,22), SRUM 네트워크/앱, Sigma 확장
+- [ ] Phase 4: 다중 소스 — 어댑터 코드는 추가됨. Sysmon 시간축 오류 및 MFT/USN 검색 연결 보완 필요
 - [ ] Phase 5: 다중 호스트 상관관계 후보와 검증
 
 공격 샘플 DB는 37,357행 중 37,223행이 `evtx_other`다. 이들은 원본과 시간축을 제공하지만 의미 관계를 해석하지 않는다. 따라서 그래프 UI 완성은 모든 로그 종류의 분석 완성을 뜻하지 않는다. Phase 4에서 MFT/USN이 파이프라인에 통합되었고, Sysmon EVTX와 SRUM 어댑터도 추가되었다.
+
+### 최신 통합 점검 (`2905f96` 기준)
+
+전체 75개 단위 테스트는 통과했지만 아래 별도 통합 재현은 실패했다. Phase 4 전체 완료로 취급하지 않는다.
+
+- Sysmon Event ID 1 CSV를 `ingest()`로 정상 수집한 뒤 `TimelineIndex()`를 생성하면 `KeyError: sysmon_process_create`가 발생한다. 새 종류가 `timeline.KINDS`에 연결되지 않았다.
+- MFT 1행 CSV는 `fs_rows`에 저장되지만 소스 상태가 `complete`다. `FileIndex.sources()`는 `indexed`만 읽어 검색 가능한 소스가 0개로 반환된다.
+- Sigma 매칭 코드는 추가됐으며 시간축·그래프의 후보 표시 UI와 실제 정확도 평가는 남았다. 75개 테스트 통과는 모든 기능의 실제 동작 완성을 의미하지 않는다.
+
+## AWS 관제·포렌식 자동화 계획 (2026-09-09)
+
+총 AWS 예산 $300을 목표로 한 신규 실습이다. 상세 구성·비용 가정·검증 기준은 [cloud-lab/DESIGN.md](cloud-lab/DESIGN.md)를 따른다. AWS 리소스는 아직 배포하지 않았다. AWS 실습 인프라와 Atlas 개발은 모두 이 저장소에서 관리한다.
+
+- [x] 전체 프로젝트 설계 초안 작성 — 네트워크·로그·사건·증거·분석·대응·비용·종료 절차
+- [x] AWS 샘플 고정 커밋 검토·오픈소스 활용 계획 — [도구 선택과 재사용 범위](cloud-lab/OPEN_SOURCE.md)
+- [x] 클라우드 포렌식 상세 설계 — [계정/IAM/KMS·로그·휘발성·조사 파이프라인](cloud-lab/CLOUD_FORENSICS.md)
+- [x] 인프라 재설계 초안 — [서버·WordPress/RDS·DMZ·WAF/IPS/EDR·중앙 로그·실제 공격](cloud-lab/BUILD_AND_ATTACK.md)
+- [ ] A0: 인프라·웹/DB·방어 정책·예산 준비, OSS 버전/해시 lock
+- [ ] A1: 계정·VPC·DMZ·SG·TLS·IAM·감사·SSM 구축
+- [ ] A2: WordPress·RDS·S3 자료 배치·정상 서비스 검증
+- [ ] A3: 중앙 로그·WAF/Suricata IPS/EDR·실제 공격 대조·SIEM 규칙/경보
+- [ ] A4: AWS 경보 → 사건 → 원본/선택 Linux·RDS 증거·해시·manifest
+- [ ] A5: Atlas AWS·Linux·RDS 자원/세션·시간축 연동
+- [ ] A6: 네트워크·IAM/DB 대응·복구 플레이북 검증
+- [ ] A7: AI 평가·통합 데모·보고서·증거 내보내기·AWS 자원 정리
+
+실제 구축 순서와 완료 기준은 B00~B14로 분해했다. 이전 Windows APP/EC2 DB 기본안은 교체했다. 기존 Atlas의 Sysmon/MFT 통합 보완은 별도 코드 작업으로 유지한다.
 
 ## 시간순 전체 맵 사용법
 
@@ -45,7 +72,7 @@ flowchart LR
 ## 현재 PC에서 열기
 
 - KAPE 근거·새 그래프 확인: **http://127.0.0.1:8771**
-- 공격 샘플 조회: **http://127.0.0.1:8769**
+- 공격 샘플·새 그래프 조회: **http://127.0.0.1:8769**
 - Neo4j Browser: **http://127.0.0.1:17474**
 - Bolt: `bolt://127.0.0.1:17687`
 - 데이터: `data/sba.sqlite`, 사건 ID `SBA-20260831`
@@ -195,6 +222,10 @@ python -m dfir_graph --db data/attack-samples.sqlite es-status --case EVTX-ATTAC
 2026-09-09 실제 로컬 ES에서 출처 1 / 레코드 37,357 / 노드 325 / 관계 736 / 이슈 84가 SQLite 집계와 일치하고, 원래 CSV 레코드 조회도 일치함을 확인했습니다. 새 인덱스명은 정확한 사건 ID의 SHA-256을 포함해 대소문자·기호·Unicode·긴 ID의 slug 충돌을 방지합니다. 구 인덱스는 보존하며 SQLite 원본은 변경하지 않습니다.
 
 Kibana의 **Evidence Atlas Records**는 `ea-current-records` 별칭을 사용합니다. `ea-records-*`를 그대로 쓰면 보존한 구 인덱스와 새 인덱스가 중복 집계될 수 있습니다. 현재 데이터 뷰는 이름과 ID를 유지한 채 별칭으로 전환했습니다. 새 사건 동기화도 이 별칭에 추가됩니다. 부분 실패는 명령 실패로 처리하고, 같은 `es-sync`를 재실행할 수 있습니다. 새 동기화는 1,000문서씩 처리하지만 ES 전체 작업의 원자성은 보장하지 않습니다.
+
+기존 8769 뷰어가 구 저장소에서 실행 중임을 정적 파일의 일치로 확인했습니다. 새 DB와 집계·출처 해시를 대조한 후 독립 저장소에서 재시작했고, 현재 8769의 정적 파일 및 그래프 API가 새 코드와 일치합니다. 8771은 SBA KAPE 자료의 검증 뷰어입니다.
+
+설치용 wheel을 별도 임시 디렉터리에서 빌드하고 그래프 JS/CSS와 라이브러리·라이선스 포함을 확인했습니다.
 
 정적 그래프 라이브러리는 Cytoscape.js 3.34.3(MIT)을 로컬에 포함했습니다. 패키지/페이지 실행 시 CDN에서 코드를 받지 않습니다. 출처·무결성은 DESIGN.md 5.2.4에 기록했습니다.
 

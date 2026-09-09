@@ -451,7 +451,7 @@ CLI 명령:
 - 39개 고유 규칙 매칭 (Credential Dumping, Pass the Hash, PowerShell 악용 등)
 - 멱등 실행: 재스캔 시 중복 없음 (`INSERT OR IGNORE`)
 
-### 5.4 Phase 4: 다중 데이터 소스 확장 ✅ 구현·검증 완료 (2026-09-09)
+### 5.4 Phase 4: 다중 데이터 소스 확장 — 어댑터 추가, 통합 보완 필요 (2026-09-09)
 
 KAPE CSV에 더해 아래 소스를 단계적으로 추가한다.
 
@@ -481,7 +481,7 @@ KAPE CSV에 더해 아래 소스를 단계적으로 추가한다.
 
 **Sigma 매칭 확장**: Sysmon 이벤트 4종에 대한 필드 매핑 추가. `network_connection`, `file_event`, `dns_query` 로그소스 카테고리 지원.
 
-**검증**: 75개 테스트 통과 (기존 54 + Phase 4 신규 21)
+**검증**: 75개 단위 테스트 통과 (기존 54 + Phase 4 신규 21). 추가 통합 재현에서 Sysmon Event ID 1의 시간축 생성이 `KeyError: sysmon_process_create`로 실패했고, MFT 1행의 상태가 `complete`인데 FileIndex는 `indexed`만 읽어 소스가 검색되지 않았다. 따라서 이 단계 전체 완료 표시는 보류한다. 새 kind의 시간축·프론트엔드·Neo4j 투영 연결과 파일 인덱스 상태를 우선 보완해야 한다.
 
 #### 새 어댑터 작성 규칙
 
@@ -537,6 +537,22 @@ def ingest_새어댑터(projection, rows, options):
   SESSION_ON         — 세션이 존재하는 호스트
   LATERAL_CANDIDATE  — 횡이동 후보 (확정 아님, basis 명시)
 ```
+
+### 5.6 AWS 관제·포렌식 자동화 실습 — 설계 단계
+
+AWS 실습 인프라와 Evidence Atlas 연동 작업은 모두 이 evidence-atlas 저장소에서 관리한다. siem-project는 이전 SIEM 실습 저장소이며 새 AWS·포렌식 작업 경로로 사용하지 않는다.
+
+- 상세 설계 파일: [cloud-lab/DESIGN.md](cloud-lab/DESIGN.md).
+- 상세 인프라·증거 파이프라인: [cloud-lab/CLOUD_FORENSICS.md](cloud-lab/CLOUD_FORENSICS.md).
+- 실제 구축·공격·로그 생성 절차: [cloud-lab/BUILD_AND_ATTACK.md](cloud-lab/BUILD_AND_ATTACK.md). B00~B14 작업과 S0~S6 실험, 산출물·완료 기준을 정의한다.
+- 오픈소스 채택·고정 커밋 검토: [cloud-lab/OPEN_SOURCE.md](cloud-lab/OPEN_SOURCE.md).
+- A0 생성 예정: cloud-lab/toolchain.lock.json, cloud-lab/THIRD_PARTY_NOTICES.md. 버전·해시·라이선스 확인 후 작성한다.
+- 계획 갱신: WordPress/RDS·DMZ·WAF·Suricata IPS·Elastic endpoint·중앙 로그부터 구축한다. DVWA/CloudGoat 실제 공격·SIEM 검증 후 AWS/Linux 증거와 Atlas를 연결한다. OpenTofu·Velociraptor·Sigma 등 OSS를 활용하며 Windows는 후속 선택이다. 구현·배포 완료를 의미하지 않는다.
+- 생성 예정 구성: cloud-lab/infra, bootstrap, application, collectors, playbooks, scenarios, scripts, tests, results. 상세 파일 배치는 cloud-lab/DESIGN.md 섹션 12를 따른다.
+- Atlas 코어 변경: dfir_graph와 tests에서 구현하며, 새 모듈·어댑터·CLI의 세부 계약은 구현 전에 이 섹션에 추가한다.
+- 진행 상황의 출처: 이 저장소 README의 AWS A0~A7 체크리스트.
+- 현재 상태: 설계서만 작성. AWS 리소스와 자동화는 아직 배포하지 않았다.
+- 원본·시간 의미·범위 분리·인과 확정 금지·로컬 AI 원칙을 동일하게 적용한다.
 
 ---
 
@@ -700,7 +716,7 @@ Cypher 예시:       queries/investigate.cypher
 | Kibana | 8.17.0 | http://127.0.0.1:5601 | 위와 동일 (같은 compose) |
 | Neo4j Community | 5.26.30 | http://127.0.0.1:17474 / bolt://127.0.0.1:17687 | `./run.ps1 -WithNeo4j` |
 | Ollama | 0.33.3 | http://127.0.0.1:11434 | 시스템 트레이에서 자동 실행 |
-| Evidence Atlas 뷰어 | 0.2.0 | http://127.0.0.1:8771 (SBA) | `./run.ps1 -Port 8771` |
+| Evidence Atlas 뷰어 | 0.2.0 | http://127.0.0.1:8771 (SBA), :8769 (공격 샘플) | `./run.ps1 -Port 8771` |
 
 ### 12.2 Docker Compose 설정 (`docker-compose.yml`)
 
