@@ -9,7 +9,7 @@ KAPE **Modules CSV 결과**를 읽어 원래 레코드와 출처를 SQLite에 �
 - [x] Phase 1의 SQLite→ES 동기화·조회·ECS 필드 투영과 CLI
 - [ ] Phase 1의 ES 직접 수집·백엔드 선택·ES 기반 시간축/웹 뷰어
 - [x] Phase 2: 시간축에서 1~2단계 그래프 탐색·근거 확인·시간축 복귀
-- [ ] Phase 3: Sigma 매칭, 규칙 후보/근거/ATT&CK 태그 표시 (규칙 파일 준비만 완료)
+- [x] Phase 3: Sigma 매칭 — 1,494규칙 로딩, 필드 매핑, 조건 평가, detections 테이블, CLI 3종
 - [ ] Phase 4: MFT/USN 통합, Sysmon·SRUM 등 다중 소스 해석
 - [ ] Phase 5: 다중 호스트 상관관계 후보와 검증
 
@@ -174,7 +174,7 @@ python scripts/verify_live.py --db data/sba.sqlite --reload
 
 단위 테스트는 반복 적재, 파일 단위 실패/재시도, PID 의미, 공급자별 Event ID 충돌, VSS 분리, Prefetch 오류, 시간대/정밀도, 출처 보존, 사건 분리와 출력 경로를 검증합니다. 실데이터는 파일별 트랜잭션으로 처리하며 실패한 파일만 재시도합니다. 입력 내용이 바뀌면 새 해시의 자료 버전으로 추가됩니다. 기존 버전이나 다른 경로의 중복 수집본을 자동 삭제·병합하지 않습니다.
 
-30개 테스트가 통과했습니다. 새 검증에는 그래프 사건/범위 격리, 표시 상한, ES 사건 ID 충돌, 부분 저장 실패, 대량 배치와 ECS 시각 의미가 포함됩니다. 추가 테스트는 새 어댑터의 원래 행 보존, C/VSS 연결 근거, 임의 드라이브 변환 방지, 자료 간 경로 연결, 파일 시각 의미, 근거 묶음 사건 분리, AI 인용 검증과 보고서 이스케이프를 확인합니다. 브라우저에서 새 아티팩트 상세와 분석 보조 탭을 확인했습니다.
+54개 테스트가 통과했습니다. 새 검증에는 그래프 사건/범위 격리, 표시 상한, ES 사건 ID 충돌, 부분 저장 실패, 대량 배치와 ECS 시각 의미, Sigma 값 매칭·조건 평가·스캔 통합·멱등성이 포함됩니다. 추가 테스트는 새 어댑터의 원래 행 보존, C/VSS 연결 근거, 임의 드라이브 변환 방지, 자료 간 경로 연결, 파일 시각 의미, 근거 묶음 사건 분리, AI 인용 검증과 보고서 이스케이프를 확인합니다. 브라우저에서 새 아티팩트 상세와 분석 보조 탭을 확인했습니다.
 
 시간순 맵은 해당 기간 전체를 집계하고 개별 기록은 페이지로 제공합니다. 관계 지도는 기본 노드 100개/관계 180개, 기존 CLI 1홉 조회는 관계 150건, 처리 상태 창은 200건까지 표시하므로 전체 질의에는 CLI/Cypher를 사용할 수 있습니다. 본문 전체 검색, 사건별 접근 제어, 다중 사용자 인증과 분석 주석 저장은 아직 없습니다. 본인 PC의 신뢰하는 계정에서 사용하는 도구입니다. 그래프 참조를 함께 쓰는 기록도 같은 사건으로 제한합니다.
 
@@ -191,18 +191,31 @@ Kibana의 **Evidence Atlas Records**는 `ea-current-records` 별칭을 사용합
 
 정적 그래프 라이브러리는 Cytoscape.js 3.34.3(MIT)을 로컬에 포함했습니다. 패키지/페이지 실행 시 CDN에서 코드를 받지 않습니다. 출처·무결성은 DESIGN.md 5.2.4에 기록했습니다.
 
+## Sigma 규칙 매칭
+
+```powershell
+python -m dfir_graph --db data/attack-samples.sqlite sigma-scan --rules vendor/sigma/rules/windows
+python -m dfir_graph --db data/attack-samples.sqlite sigma-stats
+python -m dfir_graph --db data/attack-samples.sqlite sigma-list --level high --limit 20
+```
+
+SigmaHQ의 Windows 규칙(process_creation, ps_script, security)을 SQLite 레코드에 직접 매칭합니다. 결과는 `detections` 테이블에 저장하며 멱등 실행(재스캔 시 중복 없음)입니다. 매칭 결과는 **탐지 후보**이지 공격 확정이 아닙니다. 각 탐지에 `basis: "sigma_rule:{rule_id}"`와 매칭된 필드, ATT&CK 태그가 포함됩니다. 뷰어 API `/api/detections`와 `/api/detections/stats`로도 조회할 수 있습니다.
+
+2026-09-09 EVTX-ATTACK-SAMPLES 검증: 1,494개 규칙 로딩, 134개 대상 레코드 → 125개 탐지 (critical 1, high 73, medium 40, low 11, 39개 고유 규칙). Credential Dumping, Pass the Hash, PowerShell 악용, WMI 실행 등 주요 공격 기법이 탐지되었습니다.
+
 ## 남은 개발 범위
 
 - MFT/USN의 디스크 기반 인덱스와 선택적 시간축 투영. 실제 MFT는 파일 하나에 약 190만 행이므로 전량 그래프 노드화 전에 저장 공간과 탐색 성능을 검증해야 합니다.
 - 나머지 RECmd·Amcache 및 SRUM/SUM 출력 지원. 현재 없는/실패한 수집 결과는 파서를 추가해도 복원되지 않습니다.
 - 명시적인 볼륨·프로필 매핑, 반복 파서 출력의 중복 후보 표시, 프로세스 생존 구간을 이용한 부모 후보 검토.
 - 설치된 로컬 모델의 실제 추론과 정답 사건셋 평가. 근거 인용 검증과 분석 품질 평가는 별개입니다.
-- 분석자 주석·가설 승인 이력, 근거가 있는 탐지 규칙/ATT&CK 매핑과 오탐 평가.
+- Sigma 매칭 결과의 뷰어 UI 통합 (시간축/그래프에서 탐지 하이라이트), 오탐 평가 워크플로.
 
 해시는 **받은 CSV/TXT의 무결성**을 추적합니다. 원래 디스크 이미지·EVTX·PF의 취득 무결성이나 법적 증거 보관 절차를 대신하지 않습니다. 소스 코드와 생성한 증거 데이터, 접속 정보는 디렉터리와 Git 제외 규칙으로 분리했습니다.
 
 ## 구현 참고
 
+- [SigmaHQ Rules](https://github.com/SigmaHQ/sigma)
 - [Cytoscape.js](https://js.cytoscape.org/)
 - [Kibana 데이터 뷰 갱신 API](https://www.elastic.co/docs/api/doc/kibana/v8/operation/operation-updatedataviewdefault)
 
