@@ -1,0 +1,26 @@
+# Data & runtime
+data/
+.runtime/
+*.sqlite
+
+# Vendor (clone separately)
+vendor/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Docker volumes
+es-data/

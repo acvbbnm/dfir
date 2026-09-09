@@ -1,0 +1,8 @@
+# Only required for load-neo4j. Ingestion, JSONL export, tests and local viewer use Python stdlib.
+neo4j>=5.26,<6
+
+# Expansion: Elasticsearch backend (Phase 1)
+elasticsearch>=8.0,<9
+
+# Expansion: Sigma rule matching (Phase 3)
+pySigma>=0.11
