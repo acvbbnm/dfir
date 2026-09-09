@@ -11,12 +11,13 @@ dependencies = []
 
 [project.optional-dependencies]
 neo4j = ["neo4j>=5.26,<6"]
+elasticsearch = ["elasticsearch>=8.0,<9"]
 
 [project.scripts]
 dfir-graph = "dfir_graph.__main__:main"
 
 [tool.setuptools.package-data]
-dfir_graph = ["static/*.html", "static/*.js", "static/*.css"]
+dfir_graph = ["static/*.html", "static/*.js", "static/*.css", "static/vendor/*.js", "static/vendor/*.LICENSE"]
 
 [tool.setuptools.packages.find]
 include = ["dfir_graph*"]

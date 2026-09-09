@@ -142,3 +142,71 @@ class Store:
             ids.update([edge["source"], edge["target"]])
         nodes = [self.node_dict(self.db.execute("SELECT * FROM nodes WHERE id=?", (key,)).fetchone()) for key in sorted(ids)]
         return {"center": node_id, "nodes": nodes, "edges": edges, "truncated": truncated}
+
+
+    def graph_neighbors(self, node_id, depth=1, node_limit=100, edge_limit=180,
+                        include_structure=False, scope="", case_id=None):
+        """Bounded, deterministic, read-only BFS; links remain evidence claims.
+
+        Shared FilePath/Account nodes may span snapshots. Edges retain each
+        source record's scope; an optional scope restricts claims before BFS.
+        Structural hubs are excluded by default to avoid expanding a whole case.
+        """
+        depth = int(depth)
+        if depth not in (1, 2):
+            raise ValueError("Graph depth must be 1 or 2")
+        node_limit = min(max(int(node_limit), 2), 200)
+        edge_limit = min(max(int(edge_limit), 1), 400)
+        center = self.db.execute("SELECT * FROM nodes WHERE id=?", (node_id,)).fetchone()
+        if not center or (case_id and center["case_id"] != case_id):
+            return None
+        case_id = center["case_id"]
+        nodes = {node_id: self.node_dict(center)}
+        hops = {node_id: 0}
+        edges, frontier, truncated = {}, [node_id], False
+        structural = ("Case", "Host", "Snapshot", "EvidenceSource")
+        for hop in range(1, depth + 1):
+            following = []
+            for current in frontier:
+                sql = """SELECT e.*,r.scope AS evidence_scope,r.host AS evidence_host
+                    FROM edges e JOIN nodes s ON s.id=e.source JOIN nodes t ON t.id=e.target
+                    LEFT JOIN records r ON r.id=e.evidence_id
+                    LEFT JOIN sources rs ON rs.id=r.source_id
+                    WHERE e.case_id=? AND s.case_id=? AND t.case_id=?
+                    AND (e.evidence_id IS NULL OR rs.case_id=?)
+                    AND (e.source=? OR e.target=?)"""
+                args = [case_id, case_id, case_id, case_id, current, current]
+                if not include_structure:
+                    sql += " AND s.label NOT IN (?,?,?,?) AND t.label NOT IN (?,?,?,?)"
+                    args.extend(structural * 2)
+                if scope:
+                    sql += " AND (e.evidence_id IS NULL OR r.scope=?)"
+                    args.append(scope)
+                sql += " ORDER BY e.type,e.id LIMIT ?"
+                args.append(edge_limit + 1)
+                rows = self.db.execute(sql, args).fetchall()
+                if len(rows) > edge_limit:
+                    truncated = True
+                for row in rows[:edge_limit]:
+                    if row["id"] in edges:
+                        continue
+                    unseen = {row["source"], row["target"]} - nodes.keys()
+                    if len(edges) >= edge_limit or len(nodes) + len(unseen) > node_limit:
+                        truncated = True
+                        continue
+                    edge = dict(row)
+                    edge["properties"] = json.loads(edge.pop("props_json"))
+                    edges[edge["id"]] = edge
+                    for key in sorted(unseen):
+                        nodes[key] = self.node_dict(self.db.execute(
+                            "SELECT * FROM nodes WHERE id=? AND case_id=?", (key, case_id)).fetchone())
+                        hops[key] = hop
+                        following.append(key)
+            frontier = following
+        for key, node in nodes.items():
+            node["hop"] = hops[key]
+        return {"center": node_id, "case_id": case_id, "depth": depth,
+                "nodes": list(nodes.values()), "edges": list(edges.values()),
+                "truncated": truncated, "limits": {"nodes": node_limit, "edges": edge_limit},
+                "scope": scope, "include_structure": bool(include_structure),
+                "meaning": "Shared references and recorded relationships; not proof of causation."}

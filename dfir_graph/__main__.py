@@ -42,6 +42,20 @@ def main(argv=None):
     serve.add_argument("--port", type=int, default=8765)
     serve.add_argument('--ai-model', help='Enable hypotheses from an installed local Ollama model')
 
+    sigma_scan = commands.add_parser("sigma-scan", help="Match Sigma rules against SQLite records")
+    sigma_scan.add_argument("--rules", default="vendor/sigma/rules/windows", help="Sigma rules directory")
+    sigma_scan.add_argument("--case", default=None, help="Scan only this case")
+
+    sigma_stats = commands.add_parser("sigma-stats", help="Show Sigma detection statistics")
+    sigma_stats.add_argument("--case", default=None)
+    sigma_stats.add_argument("--level", default=None, help="Filter by level (critical/high/medium/low)")
+
+    sigma_list = commands.add_parser("sigma-list", help="List Sigma detections")
+    sigma_list.add_argument("--case", default=None)
+    sigma_list.add_argument("--level", default=None)
+    sigma_list.add_argument("--rule-id", default=None)
+    sigma_list.add_argument("--limit", type=int, default=30)
+
     es_sync = commands.add_parser("es-sync", help="Push SQLite data to Elasticsearch with ECS enrichment")
     es_sync.add_argument("--case", help="Sync only this case (default: all)")
     es_sync.add_argument("--es-hosts", default=None, help="ES hosts (default: http://localhost:9200)")
@@ -85,6 +99,15 @@ def main(argv=None):
                 if libraries.is_dir():
                     sys.path.insert(0, str(libraries))
             result = load_graph(args.db, args.uri, args.user, password, args.database, args.batch_size, progress)
+        elif args.command == "sigma-scan":
+            from .sigma_engine import scan
+            result = scan(args.db, args.rules, args.case, progress)
+        elif args.command == "sigma-stats":
+            from .sigma_engine import detection_stats
+            result = detection_stats(args.db, args.case)
+        elif args.command == "sigma-list":
+            from .sigma_engine import list_detections
+            result = list_detections(args.db, args.case, args.level, args.rule_id, args.limit)
         elif args.command == "es-sync":
             from .es_store import ESStore
             es = ESStore(hosts=args.es_hosts, api_key=args.es_api_key)

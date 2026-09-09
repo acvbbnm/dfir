@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Evidence Atlas · 사건 타임라인</title><link rel="stylesheet" href="/style.css"></head>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Evidence Atlas · 사건 타임라인</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/graph.css"></head>
 <body>
 <header class="topbar"><a class="brand" href="/">◈ <strong>Evidence Atlas</strong><span>FORENSICS</span></a><div class="top-actions"><span class="local-badge">● 로컬 · 읽기 전용</span><button id="issues-button">처리 상태</button></div></header>
 <main>
@@ -16,11 +16,19 @@
 <div id="map-wrap"><svg id="timeline-map" viewBox="0 0 1200 460" role="group" aria-label="시간순 전체 증거 맵"></svg><div id="loading" class="loading">시간순 기록을 정리하고 있습니다…</div></div>
 <div class="map-footnote"><span id="map-count"></span><span id="connection-key">같은 시각이나 연결선만으로 인과를 확정하지 않습니다.</span></div>
 </section>
+<section id="graph-panel" class="graph-panel" hidden aria-labelledby="graph-title">
+<div class="graph-heading"><div><p class="eyebrow">EVIDENCE / RELATIONSHIPS</p><h2 id="graph-title" tabindex="-1">선택한 증거의 관계 지도</h2><p id="graph-center-name"></p></div><button id="graph-close">관계 지도 닫기</button></div>
+<div class="graph-toolbar"><button id="graph-back" disabled>이전 중심</button><label for="graph-depth">연결 단계</label><select id="graph-depth"><option value="1">1단계</option><option value="2">2단계</option></select><label for="graph-scope">관계의 수집 범위</label><select id="graph-scope"><option value="">C + VSS 전체</option></select><label><input id="graph-structure" type="checkbox"> 출처·호스트 노드 포함</label><button id="graph-fit">전체 맞춤</button></div>
+<p class="graph-note">선은 기록된 참조 관계이며 인과나 악성을 뜻하지 않습니다. 시간·검색 필터와 별도로 관계를 탐색합니다. 노드를 누르면 상세, 선을 누르면 연결 근거를 확인할 수 있습니다.</p>
+<div class="graph-layout"><div id="graph-canvas" role="img" aria-label="증거 관계 그래프. 아래 노드·관계 목록으로도 탐색할 수 있습니다."></div><aside id="graph-detail" aria-label="선택한 관계 상세"></aside></div>
+<p id="graph-status" role="status" aria-live="polite"></p><div id="graph-legend" class="graph-legend" aria-label="노드 종류 범례"></div>
+<details class="graph-accessible"><summary>노드·관계 목록으로 탐색</summary><div class="graph-lists"><div><h3>노드</h3><div id="graph-node-list"></div></div><div><h3>관계</h3><div id="graph-edge-list"></div></div></div></details>
+</section>
 <section class="events-panel"><div class="events-heading"><div><span class="section-index">03</span><strong>선택 구간의 기록</strong><span id="list-total"></span></div><span>오래된 기록부터 · 한 줄을 눌러 상세 확인</span></div><div class="table-wrap"><table><thead><tr><th>시각 (UTC)</th><th>기록</th><th>종류</th><th>호스트 / 범위</th><th></th></tr></thead><tbody id="event-list"></tbody></table></div><div class="pagination"><span id="page-label"></span><div><button id="previous-page">이전 50건</button><button id="next-page">다음 50건</button></div></div></section>
 </div>
 <aside id="inspector" class="inspector" hidden><div class="inspector-heading"><span class="section-index">DETAIL</span><div><button id="selection-back" disabled>이전 기록</button><button id="close-inspector" aria-label="상세 닫기">×</button></div></div><div class="selected-heading"><span id="selected-kind" class="kind-badge"></span><h2 id="selected-title"></h2><time id="selected-time"></time></div><nav class="detail-tabs"><button data-tab="summary" class="active">기록 요약</button><button data-tab="relations">연결된 흔적</button><button data-tab="raw">원본 근거</button><button data-tab="analysis">분석 보조</button></nav><div id="detail-content" class="detail-content"></div></aside>
 </div>
 <footer><span id="coverage"></span><span>원래 값과 출처 보존 · 자동 공격 판정 없음</span></footer>
 </main>
-<dialog id="modal"><div class="modal-heading"><h2 id="modal-title"></h2><button id="close-modal">닫기</button></div><div id="modal-body"></div></dialog><div id="status" role="status" aria-live="polite"></div><script src="/app.js"></script>
+<dialog id="modal"><div class="modal-heading"><h2 id="modal-title"></h2><button id="close-modal">닫기</button></div><div id="modal-body"></div></dialog><div id="status" role="status" aria-live="polite"></div><script src="/app.js"></script><script src="/vendor/cytoscape.min.js"></script><script src="/graph.js"></script>
 </body></html>

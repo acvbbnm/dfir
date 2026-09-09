@@ -261,7 +261,7 @@ Evidence Atlas는 SIEM을 대체하지 않는다. **SIEM 위에 올라가는 포
    레지스트리               클라우드 로그           기타 소스
 ```
 
-### 5.1 Phase 1: Elasticsearch 백엔드 ✅ 완료
+### 5.1 Phase 1: Elasticsearch 백엔드 — 동기화·조회 구현, 뷰어 전환 미완료
 
 **목표**: SQLite 단일 파일의 규모 한계를 극복하면서 Evidence Atlas의 고유 모델을 유지한다.
 
@@ -270,13 +270,18 @@ Evidence Atlas는 SIEM을 대체하지 않는다. **SIEM 위에 올라가는 포
 ```
 인덱스 이름                    | 용도
 ──────────────────────────────┼──────────────────────────
-ea-sources-{case_id}          | 파일 출처 메타데이터 + SHA-256
-ea-records-{case_id}          | 원래 CSV 레코드 (raw 필드 보존)
-ea-observations-{case_id}     | 시간축 관찰 (time_kind 포함)
-ea-nodes-{case_id}            | 그래프 노드
-ea-edges-{case_id}            | 그래프 관계
-ea-issues-{case_id}           | 파싱 경고/오류
+ea-sources-{case_key}          | 파일 출처 메타데이터 + SHA-256
+ea-records-{case_key}          | 원래 CSV 레코드 (raw 필드 보존)
+ea-nodes-{case_key}            | 그래프 노드
+ea-edges-{case_key}            | 그래프 관계
+ea-issues-{case_key}           | 파싱 경고/오류
 ```
+
+`case_key`는 표시용 slug + 원래 case ID(대소문자·Unicode 포함)의 SHA-256이다. 원래 ID는 mapping `_meta.ea_case_id`에도 보관한다. 기존 slug 인덱스는 보존하며 정확한 사건이 일치할 때만 이전 조회를 허용한다. 별도 observations 인덱스는 아직 없고 관찰 속성은 nodes에 저장된다.
+
+동기화는 모든 표를 최대 1,000문서씩 전송하고 각 응답을 검증한다. 부분 실패·응답 누락·refresh 실패는 성공으로 처리하지 않는다. 중단되면 같은 `es-sync`를 다시 실행한다. ES 전체 동기화는 원자적 트랜잭션이 아니며 SQLite 읽기는 한 스냅샷에서 수행한다.
+
+성공한 동기화는 `ea-current-records` 등 `ea-current-{prefix}` 별칭에 현재 투영을 연결한다. Kibana는 이 별칭을 사용하여 보존된 구 인덱스와 신규 인덱스를 중복 집계하지 않는다. 다른 사건의 별칭 연결은 유지한다.
 
 #### 5.1.2 ECS 필드 매핑 전략
 
@@ -309,8 +314,8 @@ Evidence Atlas 고유 필드와 ECS(Elastic Common Schema)를 **병행**한다. 
 
 - SQLite는 **오프라인/단독 실행** 모드로 유지한다
 - Elasticsearch는 **온라인/확장** 모드의 백엔드다
-- `store.py`의 인터페이스 뒤에 백엔드 선택 로직을 둔다
-- 동일한 `adapters.py` + `Projection` 클래스로 양쪽에 적재한다
+- **현재 구현**: 기존 어댑터로 SQLite에 수집한 후 `es-sync`로 ES에 투영한다. ES CLI 조회·검색·집계가 있다.
+- **미구현**: `--backend` 선택, ES 직접 수집, ES 기반 시간축/웹 뷰어. 웹 뷰어와 근거 검토는 계속 SQLite를 사용한다.
 
 #### 5.1.4 구현 계획
 
@@ -333,7 +338,7 @@ Evidence Atlas 고유 필드와 ECS(Elastic Common Schema)를 **병행**한다. 
   EA_ES_API_KEY               — 인증 키 (선택)
 ```
 
-### 5.2 Phase 2: 그래프 시각화 UI
+### 5.2 Phase 2: 그래프 시각화 UI ✅ 구현·검증 완료 (2026-09-09)
 
 **목표**: 현재 텍스트 목록 기반 관계 탐색을 시각적 그래프로 대체한다.
 
@@ -362,13 +367,31 @@ Evidence Atlas 고유 필드와 ECS(Elastic Common Schema)를 **병행**한다. 
 새 파일:
   dfir_graph/static/graph.js   — 그래프 시각화 로직
   dfir_graph/static/graph.css  — 그래프 스타일
+  dfir_graph/static/vendor/cytoscape.min.js — 버전 고정 로컬 번들
+  dfir_graph/static/vendor/cytoscape.LICENSE — 라이선스
+  tests/test_graph.py          — 사건 격리·탐색 제한·원본 회귀 검증
+  tests/test_es.py             — ES 사건 격리·부분 실패·변환 회귀 검증
 
 수정 파일:
   dfir_graph/static/index.html — 그래프 탭 추가
   dfir_graph/viewer.py         — /api/graph/neighbors 엔드포인트 추가
+  dfir_graph/store.py          — 읽기 전용 1~2홉 탐색 추가
+  dfir_graph/static/timeline.js — 시간축과 그래프 선택 연동
+  pyproject.toml, .gitignore   — 로컬 번들의 패키징·Git 포함
 ```
 
-### 5.3 Phase 3: Sigma 규칙 매칭
+#### 5.2.4 구현 결과와 제한
+
+- 시간순 전체 맵을 유지한다. 요약/연결 탭의 **관계 지도 열기** 또는 참조 노드에서 진입한다.
+- `Store.graph_neighbors()`를 추가했다. 기존 `neighborhood()`/CLI는 유지한다. 새 API는 1~2홉 BFS, 사건·양 끝 노드·원본 근거의 사건 일치 검증, 선택적 scope 필터를 적용한다.
+- 기본 상한은 노드 100 / 관계 180, API 최대는 200 / 400이다. 잘린 결과는 화면에 명시한다. Case/Host/Snapshot/EvidenceSource 허브는 기본 제외하고 명시적으로 포함할 수 있다.
+- 경로·계정 등 공유 참조는 C/VSS를 연결할 수 있지만 관찰을 병합하지 않는다. 선마다 원래 레코드의 host/scope와 basis를 반환하며, 범위 필터는 관계를 펼치기 전에 적용한다.
+- 노드·선 선택으로 time_kind, 원본 CSV, 논리 레코드 번호, SHA-256 확인. 관찰에서 시간축 복귀, 중심 변경/이전 중심, 키보드용 목록 탐색을 지원한다. 시각 미확정 관찰은 시간축 복귀 버튼을 비활성화한다.
+- Cytoscape.js **3.34.3**, MIT, npm 배포 SHA-512 검증 후 로컬 번들로 포함. CDN 요청 없음. 번들 SHA-256: `5f3b5b529546d5af1fc5628590af033b74511a5b6f789f5f4682845863228b91`.
+- 30개 테스트, 실제 SBA 브라우저 흐름, ES 공격 샘플 37,357행의 표별 집계 일치와 원본 레코드 왕복 확인. 그래프 조회는 SQLite를 읽기 전용으로 연다.
+- Sysmon 등 아직 의미 해석하지 않는 `evtx_other`에는 그래프 연결을 만들어내지 않는다. 원본 및 시간축은 제공하며 미지원 안내를 표시한다.
+
+### 5.3 Phase 3: Sigma 규칙 매칭 ✅ 구현·검증 완료 (2026-09-09)
 
 **목표**: Sigma 규칙으로 알려진 위협 패턴을 자동 식별한다.
 
@@ -376,30 +399,57 @@ Evidence Atlas 고유 필드와 ECS(Elastic Common Schema)를 **병행**한다. 
 
 - Sigma 매칭 결과는 **탐지 후보**이지 공격 확정이 아니다
 - 매칭 결과에 `basis: "sigma_rule:{rule_id}"` 근거를 명시한다
-- 기존 관찰(Observation)에 **탐지 태그를 추가**하는 방식 (별도 테이블)
+- 별도 `detections` 테이블에 매칭 결과 저장
 - 오탐률/정탐률 판단은 분석자 몫이다
 
-#### 5.3.2 구현 방향
+#### 5.3.2 구현 결과
 
 ```
 새 파일:
-  dfir_graph/sigma_engine.py   — Sigma YAML 로딩 + 레코드 매칭
-  dfir_graph/sigma_ecs.py      — EA 필드 → Sigma/ECS 필드 변환
+  dfir_graph/sigma_engine.py   — Sigma YAML 로딩 + 필드 매핑 + 조건 평가 + 레코드 매칭
+  tests/test_sigma.py          — 24개 단위/통합 테스트
 
 새 테이블:
   CREATE TABLE detections (
     id TEXT PRIMARY KEY,
-    observation_id TEXT REFERENCES records(id),
+    record_id TEXT NOT NULL REFERENCES records(id),
     rule_id TEXT NOT NULL,
     rule_title TEXT NOT NULL,
     rule_level TEXT NOT NULL,
+    rule_file TEXT NOT NULL,
     matched_fields TEXT NOT NULL,
+    tags TEXT NOT NULL DEFAULT '[]',
     basis TEXT NOT NULL DEFAULT 'sigma_match'
   );
 
-의존성 추가:
-  pySigma (또는 직접 YAML 파싱)
+CLI 명령:
+  sigma-scan   — SQLite 레코드에 Sigma 규칙 매칭 실행
+  sigma-stats  — 탐지 통계 (레벨별, 규칙별)
+  sigma-list   — 탐지 결과 목록 (필터: case, level, rule-id)
+
+뷰어 API:
+  /api/detections       — 탐지 목록 (case, level, rule 필터)
+  /api/detections/stats — 레벨별·규칙별 집계
+
+의존성:
+  PyYAML (기존), pySigma 1.5.0 (설치됨, 규칙 로딩 참조만 사용)
 ```
+
+#### 5.3.3 지원 logsource 매핑
+
+| EA record kind | Sigma logsource | 적용 규칙 수 |
+|----------------|----------------|-------------|
+| process_creation | category: process_creation | ~1,185 |
+| powershell_scriptblock | category: ps_script | ~209 |
+| logon_success | service: security (EventID 4624) | ~327 (필터) |
+| logon_failure | service: security (EventID 4625) | ~327 (필터) |
+
+#### 5.3.4 검증 결과 (EVTX-ATTACK-SAMPLES)
+
+- 1,494개 규칙 로딩, 134개 레코드 스캔
+- **125개 탐지**: critical 1, high 73, medium 40, low 11
+- 39개 고유 규칙 매칭 (Credential Dumping, Pass the Hash, PowerShell 악용 등)
+- 멱등 실행: 재스캔 시 중복 없음 (`INSERT OR IGNORE`)
 
 ### 5.4 Phase 4: 다중 데이터 소스 확장
 
@@ -474,20 +524,22 @@ def ingest_새어댑터(projection, rows, options):
 ## 6. 구현 우선순위와 의존 관계
 
 ```
-Phase 1: Elasticsearch 백엔드              ✅ 완료 (2026-09-09)
+Phase 1: Elasticsearch 동기화·조회          구현 (ES 뷰어 전환은 남음)
     │
-    ├──→ Phase 2: 그래프 시각화 (Phase 1과 병행 가능)
+    ├──→ Phase 2: 그래프 시각화 ✅ 구현·검증 완료
     │
-    ├──→ Phase 3: Sigma 규칙 (Phase 1 완료 — ES 쿼리 활용 가능)
+    ├──→ Phase 3: Sigma 규칙 ✅ 구현·검증 완료
     │
     └──→ Phase 4: 다중 데이터 소스 (Phase 1 완료 — ES 스케일 활용 가능)
               │
               └──→ Phase 5: 다중 호스트 상관 (Phase 4 완료 후)
 ```
 
-**Phase 1 완료**: `es_store.py` + `es_mappings.py` 구현, SQLite→ES 동기화, ECS 필드 매핑, CLI 명령 3종 추가. Kibana에서 데이터 뷰 조회 확인 완료.
+**Phase 1의 동기화·조회 구현**: `es_store.py` + `es_mappings.py` 구현, SQLite→ES 동기화, ECS 필드 매핑, CLI 명령 3종 추가. Kibana에서 데이터 뷰 조회 확인 완료.
 
-**Phase 2 (그래프 시각화)**는 현재 SQLite 백엔드에서도 구현 가능하므로 Phase 1과 병행할 수 있다.
+**Phase 2 (그래프 시각화)**는 SQLite 백엔드에서 구현·검증했다.
+
+**Phase 3 (Sigma 매칭)**은 `sigma_engine.py`로 구현했다. 1,494개 규칙 로딩, process_creation/ps_script/security 로그소스 지원, 공격 샘플 134건에서 125건 탐지 (39개 고유 규칙). 다음은 Phase 4 다중 소스이다.
 
 ---
 
@@ -523,11 +575,11 @@ Phase 1: Elasticsearch 백엔드              ✅ 완료 (2026-09-09)
 ## 8. 테스트 실행
 
 ```powershell
-cd dfir-graph
+cd C:\Users\SBA_USER\Desktop\evidence-atlas
 python -m unittest discover -s tests -v
 ```
 
-현재 19개 테스트 통과. 새 기능 추가 시 반드시 테스트를 함께 작성한다.
+현재 54개 테스트 통과. 새 기능 추가 시 반드시 테스트를 함께 작성한다.
 
 테스트 범위:
 - 반복 적재 시 중복 없음
@@ -556,7 +608,7 @@ python -m unittest discover -s tests -v
 | `timeline.py`, `viewer.py`, `analysis.py` | Codex | 뷰어/분석 레이어 |
 | `neo4j_io.py` | Codex | Neo4j 투영 |
 | `filesystem.py` | Codex | MFT/USN, pipeline 미연결 |
-| `es_store.py`, `es_mappings.py` | Claude | Phase 1 ES 백엔드 |
+| `es_store.py`, `es_mappings.py` | Codex (Claude 원본) | ES 동기화 오류·사건 격리 보완, 2026-09-09 |
 | `__main__.py` | 공동 | CLI 진입점. 서브커맨드 추가만, 기존 인터페이스 불변 |
 | `static/*` | Codex | 프론트엔드 |
 | `DESIGN.md` | 공동 | 양쪽 모두 갱신 가능 |
@@ -567,8 +619,8 @@ python -m unittest discover -s tests -v
 2. **새 파일 생성 전**: 이 문서 섹션 5의 구현 계획에서 해당 파일 위치 확인
 3. **공통 인터페이스** (`Store.node()`, `Store.edge()`, `Projection` 등): 시그니처를 바꾸면 양쪽 모두 영향. 추가는 자유, 변경은 DESIGN.md에 기록
 4. **커밋 메시지**: `dfir: <한국어 설명>` 형식
-5. **브랜치**: `codex/dfir-artifact-analysis`
-6. **CLI 실행**: 반드시 `dfir-graph/` 디렉터리 안에서 (`siem-project` 루트에서 실행하면 모듈 못 찾음)
+5. **브랜치**: `main` (독립 레포의 AGENTS.md와 일치)
+6. **CLI 실행**: `evidence-atlas/` 루트에서 실행. Python 패키지는 바로 아래 `dfir_graph/`에 있다.
 7. **import 검증**: 새 모듈 작성 후 `python -c "from dfir_graph.모듈명 import 클래스명"` 통과 확인
 
 ### 9.3 작업 할당 가이드
@@ -586,7 +638,7 @@ python -m unittest discover -s tests -v
 ## 10. 파일 위치 참조
 
 ```
-프로젝트 루트:     C:\Users\SBA_USER\Desktop\siem-project\dfir-graph\
+프로젝트 루트:     C:\Users\SBA_USER\Desktop\evidence-atlas\
 소스 코드:         dfir_graph/
 테스트:            tests/
 정적 파일:         dfir_graph/static/
@@ -623,13 +675,13 @@ Cypher 예시:       queries/investigate.cypher
 
 | 서비스 | 버전 | 접속 | 시작/중지 |
 |--------|------|------|----------|
-| Elasticsearch | 8.17.0 | http://127.0.0.1:9200 | `docker compose -f dfir-graph/docker-compose.yml up -d` / `down` |
+| Elasticsearch | 8.17.0 | http://127.0.0.1:9200 | `docker compose -f docker-compose.yml up -d` / `down` |
 | Kibana | 8.17.0 | http://127.0.0.1:5601 | 위와 동일 (같은 compose) |
-| Neo4j Community | 5.26.30 | http://127.0.0.1:17474 / bolt://127.0.0.1:17687 | `dfir-graph/run.ps1 -WithNeo4j` |
+| Neo4j Community | 5.26.30 | http://127.0.0.1:17474 / bolt://127.0.0.1:17687 | `./run.ps1 -WithNeo4j` |
 | Ollama | 0.33.3 | http://127.0.0.1:11434 | 시스템 트레이에서 자동 실행 |
-| Evidence Atlas 뷰어 | 0.2.0 | http://127.0.0.1:8765 | `dfir-graph/run.ps1` |
+| Evidence Atlas 뷰어 | 0.2.0 | http://127.0.0.1:8771 (SBA) | `./run.ps1 -Port 8771` |
 
-### 12.2 Docker Compose 설정 (`dfir-graph/docker-compose.yml`)
+### 12.2 Docker Compose 설정 (`docker-compose.yml`)
 
 - **ES**: single-node, 보안 비활성화 (로컬 개발), JVM 힙 512MB, 메모리 1GB 제한
 - **Kibana**: ES 연결, Node 힙 512MB, 메모리 768MB 제한
@@ -647,7 +699,7 @@ pySigma>=0.11           — Sigma 규칙 매칭용 (Phase 3)
 
 ### 12.4 Sigma 규칙
 
-- **위치**: `dfir-graph/vendor/sigma/` (SigmaHQ/sigma shallow clone, .gitignore 제외)
+- **위치**: `vendor/sigma/` (SigmaHQ/sigma shallow clone, .gitignore 제외)
 - **규칙 수**: 3,144개 YAML 파일
 - **Windows 프로세스 생성**: `vendor/sigma/rules/windows/process_creation/`
 - **갱신**: `git -C vendor/sigma pull --ff-only`
@@ -675,7 +727,7 @@ Evidence Atlas에서 사용: `run.ps1 -AIModel 'qwen2.5:7b'` 또는 CLI `analyze
 전체 환경을 한번에 세팅하는 스크립트:
 
 ```powershell
-cd dfir-graph
+cd C:\Users\SBA_USER\Desktop\evidence-atlas
 .\scripts\setup_expansion.ps1           # 전체 세팅
 .\scripts\setup_expansion.ps1 -SkipDocker  # Docker 제외
 ```
@@ -686,9 +738,9 @@ cd dfir-graph
 |------|------|------|
 | `dfir_graph/es_store.py` | **✅ 완료** | ESStore 클래스 — SQLite→ES 동기화, 동일 read API, ES 전용 쿼리 |
 | `dfir_graph/es_mappings.py` | **✅ 완료** | 5개 인덱스 매핑 + ECS 변환 (`record_to_ecs`) |
-| `dfir_graph/__main__.py` | **✅ 수정** | `es-sync`, `es-status`, `es-search` CLI 명령 추가 |
-| `dfir_graph/sigma_engine.py` | **미생성** | Sigma 규칙 매칭 엔진 (Phase 3) |
-| `dfir_graph/static/graph.js` | **미생성** | 그래프 시각화 UI (Phase 2) |
+| `dfir_graph/__main__.py` | **✅ 수정** | `es-sync`, `es-status`, `es-search`, `sigma-scan`, `sigma-stats`, `sigma-list` CLI 명령 추가 |
+| `dfir_graph/sigma_engine.py` | **✅ 완료** | Sigma YAML 로딩 + 필드 매핑 + 조건 평가 + SQLite 매칭 (Phase 3) |
+| `dfir_graph/static/graph.js` | **✅ 완료** | 로컬 Cytoscape 관계 지도·근거·시간축 이동 (Phase 2) |
 | `dfir_graph/filesystem.py` | **미통합** | MFT/USN 인덱스 구현됨, pipeline.py에 연결 안 됨 |
 
 ### 12.9 ES 인덱스 현황 (2026-09-09 동기화 완료)
@@ -701,15 +753,15 @@ cd dfir-graph
 | `ea-sources-evtx-attack-samples` | 1 | 파일 출처 메타데이터 |
 | `ea-issues-evtx-attack-samples` | 84 | 파싱 경고 |
 
-Kibana 데이터 뷰 "Evidence Atlas Records" (`ea-records-*`, timestamp: `@timestamp`) 생성 완료.
+위 표는 보존한 구 인덱스다. 동일한 문서 수의 SHA-256 접미사 인덱스로 재동기화했다. Kibana 데이터 뷰 "Evidence Atlas Records"는 `ea-current-records` 별칭, 시각 필드는 `@timestamp`로 검증했다. 데이터 뷰 ID와 표시 이름은 유지했다.
 
 ### 12.10 ES CLI 사용법
 
-**주의**: `dfir-graph/` 디렉터리 안에서 실행해야 한다. (`siem-project` 루트에서 실행하면 `No module named dfir_graph` 오류)
+**실행 위치**: 독립 저장소 `evidence-atlas/` 루트. Python 패키지는 `dfir_graph/`이다.
 
 ```powershell
-# dfir-graph 디렉터리로 이동
-cd dfir-graph
+# 독립 저장소로 이동
+cd C:\Users\SBA_USER\Desktop\evidence-atlas
 
 # SQLite → ES 동기화 (전체 case)
 python -m dfir_graph --db data/attack-samples.sqlite es-sync

@@ -41,7 +41,10 @@ def serve(database, port=8765, ai_model=None):
             parsed = urlparse(self.path)
             static = {"/": ("index.html", "text/html; charset=utf-8"),
                       "/app.js": ("timeline.js", "application/javascript; charset=utf-8"),
-                      "/style.css": ("style.css", "text/css; charset=utf-8")}
+                      "/style.css": ("style.css", "text/css; charset=utf-8"),
+                      "/graph.js": ("graph.js", "application/javascript; charset=utf-8"),
+                      "/graph.css": ("graph.css", "text/css; charset=utf-8"),
+                      "/vendor/cytoscape.min.js": ("vendor/cytoscape.min.js", "application/javascript; charset=utf-8")}
             if parsed.path in static:
                 name, mime = static[parsed.path]
                 self.send(200, (assets / name).read_bytes(), mime)
@@ -72,10 +75,23 @@ def serve(database, port=8765, ai_model=None):
                     result = local_ai_status(ai_model)
                 elif parsed.path == "/api/search":
                     result = store.search(arg("q"), arg("label") or None, int(arg("limit", "30")))
+                elif parsed.path == "/api/graph/neighbors":
+                    result = store.graph_neighbors(arg("id"), depth=arg("depth", "1"),
+                        node_limit=arg("nodes", "100"), edge_limit=arg("edges", "180"),
+                        include_structure=arg("structure", "0") == "1",
+                        scope=arg("scope"), case_id=arg("case") or None)
                 elif parsed.path == "/api/graph":
                     result = store.neighborhood(arg("id"), int(arg("limit", "30")))
                 elif parsed.path == "/api/evidence":
                     result = store.evidence(arg("id"))
+                elif parsed.path == "/api/detections":
+                    from .sigma_engine import list_detections
+                    result = list_detections(database, case_id=arg("case") or None,
+                        level=arg("level") or None, rule_id=arg("rule") or None,
+                        limit=int(arg("limit", "50")))
+                elif parsed.path == "/api/detections/stats":
+                    from .sigma_engine import detection_stats
+                    result = detection_stats(database, case_id=arg("case") or None)
                 elif parsed.path == "/api/issues":
                     result = [dict(r) for r in store.db.execute("SELECT code,message,record_id FROM issues ORDER BY code,id LIMIT 200")]
                 elif parsed.path == "/api/timeline":

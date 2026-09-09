@@ -37,6 +37,8 @@ function activeLanes() { const ids=new Set(filters().lanes.split(",")); return s
 function activateSvg(node,caption,action) { node.setAttribute("role","button");node.setAttribute("tabindex","0");node.setAttribute("aria-label",caption);node.onclick=()=>action();node.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();action();}}; }
 
 async function loadView() {
+  // Early filter input is retained; initialization will load it when metadata is ready.
+  if(!state.meta)return;
   const token=++state.viewToken; $("loading").hidden=false;
   try {
     const width=$("map-wrap").clientWidth;
@@ -194,6 +196,10 @@ function renderDetails() {
   document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("active",b.dataset.tab===state.tab));
   const e=state.selected,raw=state.evidence,panel=$("detail-content");if(!e||!raw)return;
   panel.replaceChildren();
+  if(state.tab==="summary"||state.tab==="relations"){
+    if(e.node_id)panel.append(button("이 기록의 관계 지도 열기",()=>openEntity(e.node_id),"wide primary"));
+    else panel.append(element("p","이 이벤트는 원본과 시간축만 제공하며, 의미 관계 해석은 아직 지원하지 않습니다.","detail-note"));
+  }
   if(state.tab==="summary"){
     panel.append(field("관찰 시각 · 원래 정밀도",e.time_raw,true),field("호스트 / 수집 범위",e.host+" / "+e.scope),field("기록 의미",kinds[e.kind]));
     panel.append(field("시각의 의미",timeMeanings[e.time_kind]||e.time_kind));
@@ -269,21 +275,25 @@ async function renderAnalysis(panel,e){
 function downloadText(text,name,type){const url=URL.createObjectURL(new Blob([text],{type:type+";charset=utf-8"})),a=element("a");a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 async function relatedPage(delta){const id=state.selected.id;state.relatedOffset=Math.max(0,state.relatedOffset+delta);const result=await api("/api/timeline/related",{id,offset:state.relatedOffset});if(state.selected.id!==id)return;state.related=result;renderDetails();renderMap();}
 async function openEntity(id) {
-  const g=await api("/api/graph",{id,limit:150}),n=g.nodes.find(n=>n.id===id),nodes=new Map(g.nodes.map(n=>[n.id,n]));
-  $("modal-title").textContent=n.display;const body=$("modal-body");body.replaceChildren(element("pre",JSON.stringify(n.properties,null,2)));
-  body.append(element("p",g.truncated?"참조 관계 150건까지 표시합니다. 전체 시각별 기록은 연결된 흔적 목록의 페이지로 탐색하세요.":"기록에 연결된 참조와 관찰입니다.","detail-note"));
-  for(const edge of g.edges){const other=nodes.get(edge.source===id?edge.target:edge.source),b=button(other.display,async()=>{
-    if(other.label==="Observation"){const item=await api("/api/timeline/item",{id:other.id});$("modal").close();await selectEvent(item);}
-    else await openEntity(other.id);
-  },"entity-button");b.append(element("small",edge.type));body.append(b);}
-  if(!$("modal").open)$("modal").showModal();
+  await window.EvidenceGraph.open(id,{caseId:$("case").value,scope:$("scope").value});
 }
+window.EvidenceAtlas = {
+  api, element, button, field, timeMeanings, entityNames,
+  scopes:()=>state.meta?.scopes||[],
+  selectObservation:async id=>{
+    const item=await api("/api/timeline/item",{id});
+    if(item.case_id!==$("case").value)throw new Error("현재 사건의 기록이 아닙니다.");
+    window.EvidenceGraph.close();
+    await selectEvent(item);
+    $("inspector").scrollIntoView({block:"nearest"});
+  }
+};
 async function issues(){const data=await api("/api/issues");$("modal-title").textContent="처리·연결 확인 사항 (최대 200건)";const body=$("modal-body");body.replaceChildren(element("p","도구 오류와 자료 부족에 대한 처리 상태입니다. 공격 탐지 건수가 아닙니다.","detail-note"));for(const row of data){const d=element("div",undefined,"field");d.append(element("label",row.code),element("div",row.message));body.append(d);}$("modal").showModal();}
 
 $("filter-form").onsubmit=e=>{e.preventDefault();state.start=null;state.end=null;state.offset=0;state.ranges=[];run(loadView());};
 $("clear-filters").onclick=()=>run(resetFilters());
 for(const id of ["case","host","scope"])$(id).onchange=()=>{
-  if(id==="case"){++state.selectionToken;state.selected=null;state.related=null;state.selections=[];$("inspector").hidden=true;$("workspace").classList.remove("detail-open");}
+  if(id==="case"){window.EvidenceGraph?.close();++state.selectionToken;state.selected=null;state.related=null;state.selections=[];$("inspector").hidden=true;$("workspace").classList.remove("detail-open");}
   state.start=null;state.offset=0;state.ranges=[];run(loadView());
 };
 $("date-form").onsubmit=e=>{e.preventDefault();run(setRange(Date.parse($("from-date").value+"T00:00:00Z"),Date.parse($("to-date").value+"T00:00:00Z")+DAY));};

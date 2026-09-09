@@ -6,10 +6,21 @@ The original CSV row is preserved in ea.raw (evidence integrity principle).
 
 import json
 import re
+import hashlib
+from copy import deepcopy
 
-def index_name(prefix, case_id):
+def legacy_index_name(prefix, case_id):
     slug = re.sub(r"[^a-z0-9\-]", "-", case_id.lower().strip())[:80]
     return f"ea-{prefix}-{slug}"
+
+
+def index_name(prefix, case_id):
+    # Slugs alone collapse case, punctuation, non-ASCII IDs and long prefixes.
+    if not isinstance(case_id, str) or not case_id.strip():
+        raise ValueError("A non-empty case ID is required")
+    slug = re.sub(r"[^a-z0-9-]", "-", case_id.lower())[:40].strip("-") or "case"
+    digest = hashlib.sha256(case_id.encode("utf-8")).hexdigest()
+    return f"ea-{prefix}-{slug}-{digest}"
 
 
 ALL_PREFIXES = ("sources", "records", "nodes", "edges", "issues")
@@ -125,7 +136,9 @@ def create_indices(es, case_id):
     for prefix, mapping in INDEX_MAPPINGS.items():
         name = index_name(prefix, case_id)
         if not es.indices.exists(index=name):
-            es.indices.create(index=name, body=mapping)
+            body = deepcopy(mapping)
+            body["mappings"]["_meta"] = {"ea_case_id": case_id, "ea_index_version": 2}
+            es.indices.create(index=name, body=body)
             created.append(name)
     return created
 
@@ -141,17 +154,9 @@ def delete_indices(es, case_id):
 
 
 def _parse_event_data(payload_str):
+    from .adapters import event_data
     try:
-        data = json.loads(payload_str or "{}")
-        event = data.get("EventData", {})
-        entries = event.get("Data", []) if isinstance(event, dict) else []
-        if isinstance(entries, dict):
-            entries = [entries]
-        result = {}
-        for entry in entries:
-            if isinstance(entry, dict) and "@Name" in entry:
-                result[entry["@Name"]] = entry.get("#text", "")
-        return result
+        return event_data(payload_str)
     except (ValueError, TypeError, AttributeError):
         return {}
 
@@ -258,6 +263,11 @@ def record_to_ecs(record_row, source_row=None):
         doc["ea.time_kind"] = "event_recorded"
 
     elif kind == "prefetch":
+        if str(raw.get("ParsingError", "")).strip().lower() not in ("", "false", "0"):
+            doc["event.kind"] = "pipeline_error"
+            doc["event.action"] = "prefetch-parse-error"
+            doc.pop("@timestamp", None)
+            return doc
         doc["event.kind"] = "event"
         doc["event.category"] = ["process"]
         doc["event.action"] = "prefetch-recorded"
@@ -279,6 +289,8 @@ def record_to_ecs(record_row, source_row=None):
     elif kind in ("lnk_metadata", "jumplist_entry"):
         doc["event.kind"] = "event"
         doc["event.category"] = ["file"]
-        doc["ea.time_kind"] = "shortcut_container_modified"
+        doc["ea.time_kind"] = ("destlist_entry_modified"
+            if source_row and source_row.get("adapter") == "jlecmd_automatic"
+            else "shortcut_container_modified")
 
     return doc
