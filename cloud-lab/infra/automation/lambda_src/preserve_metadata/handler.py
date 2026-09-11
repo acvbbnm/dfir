@@ -89,6 +89,7 @@ def lambda_handler(event, context):
         Body=json.dumps(result, ensure_ascii=False, default=str).encode("utf-8"),
         ContentType="application/json",
         ServerSideEncryption="aws:kms",
+        SSEKMSKeyId=os.environ["EVIDENCE_KMS_KEY_ARN"],
     )
 
     logger.info("Preserved %d items, %d errors", len(preserved), len(errors))

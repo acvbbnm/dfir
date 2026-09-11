@@ -13,6 +13,11 @@ resource "aws_db_parameter_group" "mysql84" {
   family = "mysql8.4"
 
   parameter {
+    name  = "require_secure_transport"
+    value = "ON"
+  }
+
+  parameter {
     name  = "log_output"
     value = "FILE"
   }
@@ -59,13 +64,13 @@ resource "aws_db_instance" "main" {
   username = "admin"
   password = random_password.db_master.result
 
-  multi_az               = false
-  publicly_accessible    = false
-  skip_final_snapshot    = false
+  multi_az                  = false
+  publicly_accessible       = false
+  skip_final_snapshot       = false
   final_snapshot_identifier = "${var.project}-mysql-final"
-  backup_retention_period = 7
-  copy_tags_to_snapshot  = true
-  deletion_protection    = false
+  backup_retention_period   = 7
+  copy_tags_to_snapshot     = true
+  deletion_protection       = false
 
   enabled_cloudwatch_logs_exports = ["error", "slowquery"]
 
@@ -73,8 +78,8 @@ resource "aws_db_instance" "main" {
 }
 
 resource "random_password" "db_master" {
-  length  = 24
-  special = true
+  length           = 24
+  special          = true
   override_special = "!#$%&*()-_=+[]{}<>:?"
 }
 
@@ -88,6 +93,27 @@ resource "aws_secretsmanager_secret_version" "db_credentials" {
   secret_string = jsonencode({
     username = aws_db_instance.main.username
     password = random_password.db_master.result
+    host     = aws_db_instance.main.address
+    port     = aws_db_instance.main.port
+    dbname   = aws_db_instance.main.db_name
+  })
+}
+
+
+# Application credentials are distinct from the administrator secret.
+# An operator provisions this user with privileges only on wordpress.* in B-3-2.
+resource "random_password" "wordpress" {
+  length  = 32
+  special = false
+}
+resource "aws_secretsmanager_secret" "wordpress" {
+  name = "${var.project}/db/wordpress"
+}
+resource "aws_secretsmanager_secret_version" "wordpress" {
+  secret_id = aws_secretsmanager_secret.wordpress.id
+  secret_string = jsonencode({
+    username = "wordpress_user"
+    password = random_password.wordpress.result
     host     = aws_db_instance.main.address
     port     = aws_db_instance.main.port
     dbname   = aws_db_instance.main.db_name

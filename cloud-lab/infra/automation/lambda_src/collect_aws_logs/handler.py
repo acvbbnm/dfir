@@ -32,7 +32,14 @@ def lambda_handler(event, context):
 
     sources = {}
 
-    ct = boto3.client("cloudtrail", region_name=REGION)
+    creds = boto3.client("sts", region_name=REGION).assume_role(
+        RoleArn=f"arn:aws:iam::{os.environ['WORKLOAD_ACCOUNT_ID']}:role/{os.environ.get('PROJECT', 'ea')}-collection-target",
+        RoleSessionName=f"ea-logs-{case_id[:20]}", DurationSeconds=900,
+    )["Credentials"]
+    ct = boto3.client("cloudtrail", region_name=REGION,
+                      aws_access_key_id=creds["AccessKeyId"],
+                      aws_secret_access_key=creds["SecretAccessKey"],
+                      aws_session_token=creds["SessionToken"])
     events = []
     kwargs = {
         "StartTime": start_time,
@@ -71,6 +78,7 @@ def lambda_handler(event, context):
             Body=json.dumps(events, ensure_ascii=False, default=str).encode("utf-8"),
             ContentType="application/json",
             ServerSideEncryption="aws:kms",
+        SSEKMSKeyId=os.environ["EVIDENCE_KMS_KEY_ARN"],
         )
 
     metadata = {
@@ -86,7 +94,9 @@ def lambda_handler(event, context):
         Body=json.dumps(metadata, ensure_ascii=False, default=str).encode("utf-8"),
         ContentType="application/json",
         ServerSideEncryption="aws:kms",
+        SSEKMSKeyId=os.environ["EVIDENCE_KMS_KEY_ARN"],
     )
 
     logger.info("Collected %d CloudTrail events", len(events))
-    return {"sources": sources}
+    errors = [value["error"] for value in sources.values() if value.get("error")]
+    return {"sources": sources, "errors": errors, "status": "PARTIAL" if errors else "SUCCESS"}

@@ -4,7 +4,6 @@
 *.tfstate.*
 *.tfvars
 *.tfvars.json
-.terraform.lock.hcl
 crash.log
 override.tf
 override.tf.json
@@ -39,3 +38,13 @@ results/*.log
 # OS
 .DS_Store
 Thumbs.db
+
+infra/foundation/backend.tf
+*.tfvars
+*.tfvars.json
+*.backend.hcl
+.terraform/
+*.zip
+tfplan
+*.tfplan
+!results/local-validation.json

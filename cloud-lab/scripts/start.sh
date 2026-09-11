@@ -1,42 +1,28 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
-# EA Cloud Lab — 인프라 시작 (setup → operate 전환)
-# 사용법: ./scripts/start.sh [setup|operate]
-
+# Usage preserved: start.sh [setup|operate|idle]
+# Select one dependency stage: EA_STAGE=foundation|lab|automation.
+# EA_TFVARS points to the private input file; EA_BACKEND_CONFIG supplies the S3 backend.
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 MODE="${1:-setup}"
-
-echo "=== EA Cloud Lab Start (mode: $MODE) ==="
-
-cd "$PROJECT_DIR/infra/foundation"
-echo "[1/4] Foundation — tofu init + plan"
-tofu init -upgrade
-tofu plan -out=tfplan
-echo "Foundation plan 완료. 'tofu apply tfplan'으로 적용하세요."
-
-cd "$PROJECT_DIR/infra/lab"
-echo "[2/4] Lab — tofu init + plan (mode=$MODE)"
-tofu init -upgrade
-tofu plan -var="operation_mode=$MODE" -out=tfplan
-echo "Lab plan 완료. 'tofu apply tfplan'으로 적용하세요."
-
-if [ "$MODE" = "operate" ]; then
-    cd "$PROJECT_DIR/infra/automation"
-    echo "[3/4] Automation — tofu init + plan"
-    tofu init -upgrade
-    tofu plan -out=tfplan
-    echo "Automation plan 완료. 'tofu apply tfplan'으로 적용하세요."
-else
-    echo "[3/4] Automation — setup 모드에서는 스킵"
+: "${EA_STAGE:?Choose foundation, lab or automation}"
+: "${EA_TFVARS:?Provide the private tfvars file path}"
+[[ "$MODE" =~ ^(setup|operate|idle)$ ]] || { echo 'Invalid mode' >&2; exit 2; }
+[[ "$EA_STAGE" =~ ^(foundation|lab|automation)$ ]] || { echo 'Invalid stage' >&2; exit 2; }
+[ -f "$EA_TFVARS" ] || { echo 'tfvars file is missing' >&2; exit 2; }
+TFVARS=$(realpath "$EA_TFVARS")
+init_args=(-input=false -lockfile=readonly)
+if [ -n "${EA_BACKEND_CONFIG:-}" ]; then
+  init_args+=("-backend-config=$(realpath "$EA_BACKEND_CONFIG")")
+elif [ "$EA_STAGE" != foundation ]; then
+  echo 'EA_BACKEND_CONFIG is required after foundation creates the state bucket' >&2
+  exit 2
 fi
-
-echo "[4/4] 완료."
-echo ""
-echo "다음 단계:"
-echo "  1. 각 모듈 디렉토리에서 'tofu apply tfplan'"
-echo "  2. setup 모드 후 operate로 전환:"
-echo "     ./scripts/start.sh operate"
-echo "  3. 인스턴스 부트스트랩 확인:"
-echo "     aws ssm describe-instance-information"
+cd "$PROJECT_DIR/infra/$EA_STAGE"
+tofu init "${init_args[@]}"
+tofu validate
+plan_args=(-input=false "-var-file=$TFVARS" -out=tfplan)
+if [ "$EA_STAGE" = lab ]; then plan_args+=("-var=operation_mode=$MODE"); fi
+tofu plan "${plan_args[@]}"
+echo "Plan saved for $EA_STAGE. No resources applied. Review the plan before applying it."

@@ -23,7 +23,7 @@ KAPE **Modules CSV 결과**를 읽어 원래 레코드와 출처를 SQLite에 �
 - MFT 1행 CSV는 `fs_rows`에 저장되지만 소스 상태가 `complete`다. `FileIndex.sources()`는 `indexed`만 읽어 검색 가능한 소스가 0개로 반환된다.
 - Sigma 매칭 코드는 추가됐으며 시간축·그래프의 후보 표시 UI와 실제 정확도 평가는 남았다. 75개 테스트 통과는 모든 기능의 실제 동작 완성을 의미하지 않는다.
 
-## AWS 관제·포렌식 자동화 계획 (2026-09-09)
+## AWS 관제·포렌식 자동화 계획 (2026-09-11)
 
 총 AWS 예산 $300을 목표로 한 신규 실습이다. 상세 구성·비용 가정·검증 기준은 [cloud-lab/DESIGN.md](cloud-lab/DESIGN.md)를 따른다. AWS 리소스는 아직 배포하지 않았다. AWS 실습 인프라와 Atlas 개발은 모두 이 저장소에서 관리한다.
 
@@ -31,6 +31,9 @@ KAPE **Modules CSV 결과**를 읽어 원래 레코드와 출처를 SQLite에 �
 - [x] AWS 샘플 고정 커밋 검토·오픈소스 활용 계획 — [도구 선택과 재사용 범위](cloud-lab/OPEN_SOURCE.md)
 - [x] 클라우드 포렌식 상세 설계 — [계정/IAM/KMS·로그·휘발성·조사 파이프라인](cloud-lab/CLOUD_FORENSICS.md)
 - [x] 인프라 재설계 초안 — [서버·WordPress/RDS·DMZ·WAF/IPS/EDR·중앙 로그·실제 공격](cloud-lab/BUILD_AND_ATTACK.md)
+- [x] 설치 연결·네트워크·SOC 디스크/TLS·수집 실패 처리 보완 및 로컬 회귀 검사 47개 통과 — [검증 기록](cloud-lab/results/LOCAL_VALIDATION.md)
+- [x] OpenTofu foundation/lab/automation `validate` 및 Provider lock 기록 — [재현 방법](cloud-lab/LOCAL_DEVELOPMENT.md)
+
 - [ ] A0: 인프라·웹/DB·방어 정책·예산 준비, OSS 버전/해시 lock
 - [ ] A1: 계정·VPC·DMZ·SG·TLS·IAM·감사·SSM 구축
 - [ ] A2: WordPress·RDS·S3 자료 배치·정상 서비스 검증

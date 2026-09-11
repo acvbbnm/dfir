@@ -2,6 +2,12 @@ variable "security_account_id" {
   type = string
 }
 
+variable "collection_enabled" {
+  description = "Enable automatic collection after the generated collector and cross-account upload contract pass D-3."
+  type        = bool
+  default     = false
+}
+
 variable "workload_account_id" {
   type = string
 }

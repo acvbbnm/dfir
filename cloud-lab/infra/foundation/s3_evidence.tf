@@ -136,8 +136,8 @@ resource "aws_s3_bucket_policy" "evidence_final_deny_delete" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "DenyDeleteFromWorkload"
-        Effect = "Deny"
+        Sid       = "DenyDeleteFromWorkload"
+        Effect    = "Deny"
         Principal = { AWS = "arn:aws:iam::${var.workload_account_id}:root" }
         Action = [
           "s3:DeleteObject",

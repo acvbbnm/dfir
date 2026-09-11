@@ -18,7 +18,7 @@ STAGING_BUCKET = os.environ.get("STAGING_BUCKET", "")
 def lambda_handler(event, context):
     case_id = event["case_id"]
     instance_id = event["instance_id"]
-    ssm_document = event.get("ssm_document", f"{PROJECT}-VelociraptorOfflineCollect")
+    ssm_document = f"{PROJECT}-VelociraptorOfflineCollect"
 
     logger.info("Triggering host collection for %s on %s", case_id, instance_id)
 
@@ -52,11 +52,11 @@ def lambda_handler(event, context):
     command_id = resp["Command"]["CommandId"]
     logger.info("SSM command sent: %s", command_id)
 
-    max_wait = 280
+    max_wait = 330
     waited = 0
     status = "InProgress"
 
-    while waited < max_wait and status == "InProgress":
+    while waited < max_wait and status in {"Pending", "InProgress", "Delayed"}:
         time.sleep(10)
         waited += 10
 
@@ -68,6 +68,10 @@ def lambda_handler(event, context):
             status = inv["Status"]
         except ssm.exceptions.InvocationDoesNotExist:
             continue
+
+    if status != "Success":
+        return {"status": "PARTIAL", "ssm_status": status, "command_id": command_id,
+                "error": "Host collection did not finish successfully"}
 
     output_key = f"cases/{case_id}/host-triage/"
 

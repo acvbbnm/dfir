@@ -379,3 +379,20 @@
 | **합계** | **167개** | | |
 
 Phase A는 AWS 비용 없이 로컬에서 전부 진행 가능하다. 59개 작업 중 OpenTofu 모듈(A-3~A-5)과 Lambda 코드(A-9)가 가장 무거운 작업이다.
+
+## 2026-09-11 로컬 보완 작업
+
+- `infra/modules/bootstrap/main.tf`: EC2에 공통·역할 스크립트와 설정을 함께 전달하고 크기·셸 인용을 검증한다.
+- `bootstrap/configure_wordpress.py`: 앱 전용 secret을 읽어 안전하게 PHP 설정을 작성한다. DB 사용자 생성·초기 데이터 적재는 B-3-2/B-3-6이다.
+- `tests/test_local_runtime.py`: 실제 렌더링, 설정값 인용, 수집 상태 전이와 아카이브 구성을 회귀 검증한다.
+- `scripts/validate_local.py`: AWS API 호출 없이 Python, Bash, OpenTofu 검증을 실행한다.
+- `results/LOCAL_VALIDATION.md`: 로컬 검증 결과와 AWS에서 남은 확인 항목을 구분한다.
+
+파일 작성과 `validate` 통과는 AWS `plan`/`apply` 및 G0~G8 통과를 뜻하지 않는다.
+
+- `bootstrap/soc_disk.py`: EBS volume ID 확인, 기존 파일시스템 보존 및 다른 mount 거부.
+
+
+## 로컬 검증 결과 연결
+
+2026-09-11 실제 검사와 잔여 단계는 [results/LOCAL_VALIDATION.md](results/LOCAL_VALIDATION.md)에 기록했다. `requirements-dev.txt`, `LOCAL_DEVELOPMENT.md`를 추가했다. 표의 항목은 계획이며 파일 작성·문법 통과·AWS 동작 성공을 구분한다.

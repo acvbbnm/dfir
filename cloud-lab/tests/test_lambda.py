@@ -42,10 +42,28 @@ def test_common_helpers_importable(lambda_src_dir):
         assert name in func_names, f"helpers.py: {name} 함수 누락"
 
 
+
+def credential_literals(source):
+    """Inspect values assigned to credential arguments, not variable/key names."""
+    tree = ast.parse(source)
+    findings = []
+    keys = {'aws_access_key_id', 'aws_secret_access_key', 'aws_session_token', 'password'}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.keyword) and node.arg in keys:
+            if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str) and node.value.value:
+                findings.append(node.arg)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            import re
+            if re.search(r'(?:AKIA|ASIA)[A-Z0-9]{16}|-----BEGIN (?:RSA |EC )?PRIVATE KEY-----', node.value):
+                findings.append('credential literal')
+    return findings
+
+
 def test_no_hardcoded_credentials(lambda_handlers, lambda_src_dir):
-    sensitive_patterns = ["AKIA", "aws_secret", "password", "BEGIN RSA"]
-    all_files = list(lambda_handlers) + [lambda_src_dir / "common" / "helpers.py"]
-    for fpath in all_files:
-        content = fpath.read_text(encoding="utf-8").lower()
-        for pattern in sensitive_patterns:
-            assert pattern.lower() not in content, f"{fpath}: 하드코딩된 자격증명 의심 '{pattern}'"
+    for path in list(lambda_handlers) + [lambda_src_dir / 'common' / 'helpers.py']:
+        assert not credential_literals(path.read_text(encoding='utf-8')), str(path)
+
+
+def test_credential_check_distinguishes_lookup_from_literal():
+    assert not credential_literals('client(aws_secret_access_key=creds["SecretAccessKey"])')
+    assert credential_literals('client(aws_secret_access_key="literal-example")')

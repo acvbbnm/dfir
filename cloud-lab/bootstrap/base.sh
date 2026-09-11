@@ -4,12 +4,11 @@ set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
 apt-get update -y
-apt-get upgrade -y
 
 timedatectl set-timezone Asia/Seoul
 
 apt-get install -y \
-  curl wget unzip jq \
+  curl wget unzip jq openssl python3 python3-boto3 python3-pymysql software-properties-common \
   apt-transport-https \
   ca-certificates \
   gnupg \

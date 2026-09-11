@@ -12,7 +12,9 @@ resource "aws_wafv2_web_acl" "main" {
     name     = "CRS"
     priority = 10
 
-    override_action { count {} }
+    override_action {
+      count {}
+    }
 
     statement {
       managed_rule_group_statement {
@@ -33,7 +35,9 @@ resource "aws_wafv2_web_acl" "main" {
     name     = "KnownBad"
     priority = 20
 
-    override_action { count {} }
+    override_action {
+      count {}
+    }
 
     statement {
       managed_rule_group_statement {
@@ -54,7 +58,9 @@ resource "aws_wafv2_web_acl" "main" {
     name     = "SQLi"
     priority = 30
 
-    override_action { count {} }
+    override_action {
+      count {}
+    }
 
     statement {
       managed_rule_group_statement {
@@ -75,7 +81,9 @@ resource "aws_wafv2_web_acl" "main" {
     name     = "LoginRateLimit"
     priority = 40
 
-    action { block {} }
+    action {
+      block {}
+    }
 
     statement {
       rate_based_statement {

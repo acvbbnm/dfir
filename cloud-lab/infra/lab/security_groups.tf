@@ -1,15 +1,15 @@
 # N01: test → ALB
 resource "aws_security_group" "alb" {
   name_prefix = "${var.project}-alb-"
-  description = "ALB — 외부/테스트 HTTPS 수신"
+  description = "ALB - --/--- HTTPS --"
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    description     = "HTTPS from test subnet"
-    from_port       = 443
-    to_port         = 443
-    protocol        = "tcp"
-    cidr_blocks     = [local.subnets["test-a"].cidr]
+    description = "HTTPS from test subnet"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = [local.subnets["test-a"].cidr]
   }
 
   egress {
@@ -28,7 +28,7 @@ resource "aws_security_group" "alb" {
 # N02: ALB → WEB
 resource "aws_security_group" "web" {
   name_prefix = "${var.project}-web-"
-  description = "WEB — Nginx+Suricata"
+  description = "WEB - Nginx+Suricata"
   vpc_id      = aws_vpc.main.id
 
   tags = { Name = "${var.project}-sg-web" }
@@ -42,13 +42,13 @@ resource "aws_security_group_rule" "web_from_alb" {
   protocol                 = "tcp"
   security_group_id        = aws_security_group.web.id
   source_security_group_id = aws_security_group.alb.id
-  description              = "N02: ALB → WEB"
+  description              = "N02: ALB - WEB"
 }
 
 # N03: WEB → APP
 resource "aws_security_group" "app" {
   name_prefix = "${var.project}-app-"
-  description = "APP — Apache+PHP-FPM+WordPress"
+  description = "APP - Apache+PHP-FPM+WordPress"
   vpc_id      = aws_vpc.main.id
 
   tags = { Name = "${var.project}-sg-app" }
@@ -62,7 +62,7 @@ resource "aws_security_group_rule" "app_from_web" {
   protocol                 = "tcp"
   security_group_id        = aws_security_group.app.id
   source_security_group_id = aws_security_group.web.id
-  description              = "N03: WEB → APP"
+  description              = "N03: WEB - APP"
 }
 
 # N04: APP → RDS
@@ -72,7 +72,7 @@ resource "aws_security_group" "rds" {
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    description     = "N04: APP → RDS"
+    description     = "N04: APP - RDS"
     from_port       = 3306
     to_port         = 3306
     protocol        = "tcp"
@@ -86,7 +86,7 @@ resource "aws_security_group" "rds" {
 # N05: Agent → SOC (Fleet 8220 + ES 9200)
 resource "aws_security_group" "soc" {
   name_prefix = "${var.project}-soc-"
-  description = "SOC — Elasticsearch+Kibana+Fleet"
+  description = "SOC - Elasticsearch+Kibana+Fleet"
   vpc_id      = aws_vpc.main.id
 
   ingress {
@@ -101,7 +101,7 @@ resource "aws_security_group" "soc" {
   }
 
   ingress {
-    description = "N05: Agent data → ES"
+    description = "N05: Agent data - ES"
     from_port   = 9200
     to_port     = 9200
     protocol    = "tcp"
@@ -126,7 +126,7 @@ resource "aws_security_group" "soc" {
 # N06: SSM — 모든 관리 대상
 resource "aws_security_group" "ssm" {
   name_prefix = "${var.project}-ssm-"
-  description = "SSM HTTPS 아웃바운드"
+  description = "SSM HTTPS -----"
   vpc_id      = aws_vpc.main.id
 
   egress {
@@ -144,7 +144,7 @@ resource "aws_security_group" "ssm" {
 # N07: S3 gateway — prefix list로 제한
 resource "aws_security_group" "s3_access" {
   name_prefix = "${var.project}-s3-"
-  description = "S3 gateway endpoint 접근"
+  description = "S3 gateway endpoint --"
   vpc_id      = aws_vpc.main.id
 
   egress {
@@ -162,7 +162,7 @@ resource "aws_security_group" "s3_access" {
 # N08: Secrets Manager
 resource "aws_security_group" "secrets" {
   name_prefix = "${var.project}-secrets-"
-  description = "Secrets Manager 접근"
+  description = "Secrets Manager --"
   vpc_id      = aws_vpc.main.id
 
   egress {
@@ -180,7 +180,7 @@ resource "aws_security_group" "secrets" {
 # N09: DNS + NTP
 resource "aws_security_group" "base" {
   name_prefix = "${var.project}-base-"
-  description = "DNS + NTP 기본 통신"
+  description = "DNS + NTP -- --"
   vpc_id      = aws_vpc.main.id
 
   egress {
@@ -207,6 +207,17 @@ resource "aws_security_group" "base" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+
+  dynamic "egress" {
+    for_each = var.operation_mode == "setup" ? [1] : []
+    content {
+      description = "Ubuntu package repositories during setup only"
+      from_port   = 80
+      to_port     = 80
+      protocol    = "tcp"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+  }
   tags = { Name = "${var.project}-sg-base" }
   lifecycle { create_before_destroy = true }
 }
@@ -214,7 +225,7 @@ resource "aws_security_group" "base" {
 # 격리 SG — 대응 시 교체용
 resource "aws_security_group" "isolation" {
   name_prefix = "${var.project}-isolation-"
-  description = "격리 — SSM + S3 endpoint만 허용"
+  description = "-- - SSM + S3 endpoint- --"
   vpc_id      = aws_vpc.main.id
 
   egress {
@@ -222,7 +233,7 @@ resource "aws_security_group" "isolation" {
     from_port       = 443
     to_port         = 443
     protocol        = "tcp"
-    cidr_blocks     = ["0.0.0.0/0"]
+    security_groups = [aws_security_group.vpce.id]
   }
 
   egress {
@@ -235,4 +246,30 @@ resource "aws_security_group" "isolation" {
 
   tags = { Name = "${var.project}-sg-isolation" }
   lifecycle { create_before_destroy = true }
+}
+
+resource "aws_security_group_rule" "web_to_app" {
+  type                     = "egress"
+  from_port                = 8080
+  to_port                  = 8080
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.web.id
+  source_security_group_id = aws_security_group.app.id
+}
+resource "aws_security_group_rule" "app_to_rds" {
+  type                     = "egress"
+  from_port                = 3306
+  to_port                  = 3306
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.app.id
+  source_security_group_id = aws_security_group.rds.id
+}
+resource "aws_security_group_rule" "agents_to_soc" {
+  for_each                 = { web_fleet = ["web", 8220], web_es = ["web", 9200], app_fleet = ["app", 8220], app_es = ["app", 9200] }
+  type                     = "egress"
+  from_port                = each.value[1]
+  to_port                  = each.value[1]
+  protocol                 = "tcp"
+  security_group_id        = each.value[0] == "web" ? aws_security_group.web.id : aws_security_group.app.id
+  source_security_group_id = aws_security_group.soc.id
 }

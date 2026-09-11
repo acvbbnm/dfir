@@ -49,16 +49,25 @@ resource "aws_lb_listener" "https" {
   }
 }
 
+
+resource "tls_private_key" "alb" {
+  algorithm = "RSA"
+  rsa_bits  = 2048
+}
+resource "tls_self_signed_cert" "alb" {
+  private_key_pem       = tls_private_key.alb.private_key_pem
+  dns_names             = [aws_lb.main.dns_name]
+  validity_period_hours = 2160
+  allowed_uses          = ["key_encipherment", "digital_signature", "server_auth"]
+  subject { common_name = "Evidence Atlas private lab" }
+}
 resource "aws_acm_certificate" "self_signed" {
-  # self-signed 인증서는 실제 배포 시 tls provider로 생성하거나
-  # ACM에서 사설 CA를 사용한다. 여기서는 placeholder.
-  # 실제 구현 시: tls_self_signed_cert + aws_acm_certificate import
-  private_key      = "TODO_GENERATE_AT_DEPLOY"
-  certificate_body = "TODO_GENERATE_AT_DEPLOY"
-
-  lifecycle {
-    ignore_changes = [private_key, certificate_body]
-  }
-
-  tags = { Name = "${var.project}-self-signed" }
+  private_key      = tls_private_key.alb.private_key_pem
+  certificate_body = tls_self_signed_cert.alb.cert_pem
+  tags             = { Name = "${var.project}-self-signed" }
+  lifecycle { create_before_destroy = true }
+}
+output "alb_certificate_pem" {
+  description = "Public certificate to trust explicitly in the private test client."
+  value       = tls_self_signed_cert.alb.cert_pem
 }

@@ -1,22 +1,21 @@
 {
   "schema_version": "1.0",
   "locked_at": "2026-09-09",
-  "notes": "버전 고정. 실제 배포 전 SHA-256 해시를 검증할 것. AMI ID는 ap-northeast-2 기준.",
-
+  "notes": "Provider constraints and hashes are locked. Remaining TODO values are deployment gates, not verified versions. Elastic 8.17.0 remains a compatibility candidate requiring security/support review before AWS use.",
   "infrastructure": {
     "opentofu": {
       "version": "1.9.0",
       "source": "https://github.com/opentofu/opentofu/releases",
       "license": "MPL-2.0",
-      "sha256": "TODO_VERIFY_ON_DOWNLOAD"
+      "sha256": "700d76132a8911b31157987ef7b269a88f8f20099e95715bb01b653368a9eaae",
+      "platform": "windows_amd64"
     },
     "aws_provider": {
       "version": "5.82.0",
       "source": "registry.opentofu.org/hashicorp/aws",
-      "constraint": "~> 5.82"
+      "constraint": "= 5.82.0"
     }
   },
-
   "os_images": {
     "ubuntu_2404": {
       "ami_id": "TODO_LATEST_ap-northeast-2",
@@ -25,15 +24,18 @@
       "notes": "aws ec2 describe-images --owners 099720109477 --filters Name=name,Values='ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*' --query 'sort_by(Images,&CreationDate)[-1].ImageId' --region ap-northeast-2"
     }
   },
-
   "elastic_stack": {
     "version": "8.17.0",
-    "components": ["elasticsearch", "kibana", "elastic-agent", "fleet-server"],
+    "components": [
+      "elasticsearch",
+      "kibana",
+      "elastic-agent",
+      "fleet-server"
+    ],
     "license": "Elastic License 2.0 + SSPL (Basic features free)",
     "apt_repo": "https://artifacts.elastic.co/packages/8.x/apt",
     "sha256": "TODO_VERIFY_PER_PACKAGE"
   },
-
   "web_stack": {
     "wordpress": {
       "version": "6.7.x",
@@ -42,7 +44,7 @@
     },
     "php": {
       "version": "8.3",
-      "source": "ppa:ondrej/php",
+      "source": "Ubuntu 24.04 signed package repositories",
       "license": "PHP License 3.01"
     },
     "mysql": {
@@ -60,11 +62,10 @@
       "license": "Apache-2.0"
     }
   },
-
   "security_tools": {
     "suricata": {
       "version": "7.0.x",
-      "source": "ppa:oisf/suricata-stable",
+      "source": "Ubuntu 24.04 signed package repositories; record installed-web.tsv",
       "license": "GPLv2",
       "sha256": "TODO_VERIFY"
     },
@@ -73,7 +74,8 @@
       "variant": "linux-amd64-collector",
       "source": "https://github.com/Velocidex/velociraptor/releases",
       "license": "AGPLv3",
-      "sha256": "TODO_VERIFY_ON_DOWNLOAD"
+      "sha256": "TODO_VERIFY_ON_DOWNLOAD",
+      "notes": "A generic upstream binary is not an offline collector. Generate the selected profile first and lock its artifact hash before SSM collection."
     },
     "hayabusa": {
       "version": "2.18.x",
@@ -93,7 +95,6 @@
       "commit": "TODO_PIN_COMMIT"
     }
   },
-
   "attack_tools": {
     "dvwa": {
       "version": "master",
@@ -109,7 +110,6 @@
       "scenario": "ec2_ssrf"
     }
   },
-
   "python": {
     "runtime": "3.12",
     "lambda_runtime": "python3.12",
@@ -118,5 +118,6 @@
       "requests": ">=2.32,<3",
       "jsonschema": ">=4.23,<5"
     }
-  }
+  },
+  "status": "partial-local-validation"
 }

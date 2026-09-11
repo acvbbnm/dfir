@@ -2,14 +2,21 @@ terraform {
   required_version = ">= 1.9.0"
 
   required_providers {
+    tls = {
+      source  = "registry.opentofu.org/hashicorp/tls"
+      version = "= 4.0.6"
+    }
+    random = {
+      source  = "registry.opentofu.org/hashicorp/random"
+      version = "= 3.6.3"
+    }
     aws = {
       source  = "registry.opentofu.org/hashicorp/aws"
-      version = "~> 5.82"
+      version = "= 5.82.0"
     }
   }
 
   backend "s3" {
-    bucket         = "ea-tofu-state"
     key            = "lab/terraform.tfstate"
     region         = "ap-northeast-2"
     encrypt        = true
@@ -18,7 +25,8 @@ terraform {
 }
 
 provider "aws" {
-  region = var.region
+  allowed_account_ids = [var.workload_account_id]
+  region              = var.region
 
   assume_role {
     role_arn = "arn:aws:iam::${var.workload_account_id}:role/EADeployRole"

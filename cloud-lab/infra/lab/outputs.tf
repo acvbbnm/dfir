@@ -58,3 +58,6 @@ output "sg_isolation_id" {
 output "db_secret_arn" {
   value = aws_secretsmanager_secret.db_credentials.arn
 }
+
+output "wordpress_secret_arn" { value = aws_secretsmanager_secret.wordpress.arn }
+output "soc_data_volume_id" { value = aws_ebs_volume.soc_data.id }

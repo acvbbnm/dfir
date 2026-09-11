@@ -7,9 +7,9 @@ resource "aws_iam_role" "collection_target" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect = "Allow"
+        Effect    = "Allow"
         Principal = { AWS = "arn:aws:iam::${var.security_account_id}:root" }
-        Action = "sts:AssumeRole"
+        Action    = "sts:AssumeRole"
         Condition = {
           StringLike = {
             "aws:PrincipalArn" = "arn:aws:iam::${var.security_account_id}:role/${var.project}-lambda-*"
@@ -30,6 +30,12 @@ resource "aws_iam_role_policy" "collection_target_describe" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
+      {
+        Sid      = "LookupWorkloadAudit"
+        Effect   = "Allow"
+        Action   = "cloudtrail:LookupEvents"
+        Resource = "*"
+      },
       {
         Sid    = "DescribeForMetadata"
         Effect = "Allow"
@@ -56,11 +62,9 @@ resource "aws_iam_role_policy" "collection_target_describe" {
         Sid    = "SSMForCollection"
         Effect = "Allow"
         Action = [
-          "ssm:SendCommand",
-          "ssm:GetCommandInvocation"
+          "ssm:SendCommand"
         ]
         Resource = [
-          "arn:aws:ssm:${var.region}:${var.security_account_id}:document/${var.project}-*",
           "arn:aws:ec2:${var.region}:${var.workload_account_id}:instance/*"
         ]
         Condition = {
@@ -68,6 +72,19 @@ resource "aws_iam_role_policy" "collection_target_describe" {
             "ssm:resourceTag/EACollectable" = "true"
           }
         }
+      },
+
+      {
+        Sid      = "RunFixedCollectionDocument"
+        Effect   = "Allow"
+        Action   = "ssm:SendCommand"
+        Resource = "arn:aws:ssm:${var.region}:${var.workload_account_id}:document/${var.project}-VelociraptorOfflineCollect"
+      },
+      {
+        Sid      = "ReadCollectionStatus"
+        Effect   = "Allow"
+        Action   = "ssm:GetCommandInvocation"
+        Resource = "*"
       },
       {
         Sid    = "EBSSnapshot"
@@ -99,8 +116,9 @@ resource "aws_ssm_document" "velociraptor_collect" {
     description   = "EA Velociraptor Offline Collector"
     parameters = {
       CaseId = {
-        type        = "String"
-        description = "사건 ID"
+        type           = "String"
+        description    = "사건 ID"
+        allowedPattern = "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
       }
       StagingBucket = {
         type    = "String"

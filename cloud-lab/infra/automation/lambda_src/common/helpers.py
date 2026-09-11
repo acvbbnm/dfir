@@ -37,6 +37,7 @@ def s3_put_json(bucket: str, key: str, obj: Any, s3_client=None) -> dict:
         Body=body.encode("utf-8"),
         ContentType="application/json",
         ServerSideEncryption="aws:kms",
+        SSEKMSKeyId=os.environ["EVIDENCE_KMS_KEY_ARN"],
     )
 
 

@@ -1,6 +1,6 @@
 resource "aws_s3_bucket" "tofu_state" {
   provider = aws.security
-  bucket   = "${var.project}-tofu-state"
+  bucket   = "${var.project}-tofu-state-${var.security_account_id}"
 
   tags = { Name = "${var.project}-tofu-state" }
 }
@@ -20,7 +20,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "tofu_state" {
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "aws:kms"
+      sse_algorithm     = "aws:kms"
       kms_master_key_id = aws_kms_key.evidence_s3.arn
     }
     bucket_key_enabled = true

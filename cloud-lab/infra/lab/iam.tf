@@ -49,7 +49,7 @@ resource "aws_iam_role_policy" "app_secrets" {
         Action = [
           "secretsmanager:GetSecretValue"
         ]
-        Resource = aws_secretsmanager_secret.db_credentials.arn
+        Resource = aws_secretsmanager_secret.wordpress.arn
       }
     ]
   })
@@ -128,9 +128,9 @@ resource "aws_iam_role_policy" "soc_eventbridge" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "PutEventsToSecurity"
-        Effect = "Allow"
-        Action = "events:PutEvents"
+        Sid      = "PutEventsToSecurity"
+        Effect   = "Allow"
+        Action   = "events:PutEvents"
         Resource = "arn:aws:events:${var.region}:${var.security_account_id}:event-bus/${var.project}-security-events"
       }
     ]

@@ -71,3 +71,27 @@ variable "common_tags" {
     ManagedBy   = "opentofu"
   }
 }
+
+variable "wordpress_version" {
+  description = "Exact normal-portal release selected and reviewed before deployment."
+  type        = string
+  validation {
+    condition     = can(regex("^[0-9]+\\.[0-9]+\\.[0-9]+$", var.wordpress_version))
+    error_message = "Use an exact WordPress patch release."
+  }
+}
+variable "wordpress_sha256" {
+  type = string
+  validation {
+    condition     = can(regex("^[a-f0-9]{64}$", var.wordpress_sha256))
+    error_message = "Provide the SHA-256 of the selected official WordPress archive."
+  }
+}
+variable "elastic_version" {
+  type    = string
+  default = "8.17.0"
+  validation {
+    condition     = can(regex("^8\\.[0-9]+\\.[0-9]+$", var.elastic_version))
+    error_message = "Provide an exact compatible Elastic 8.x patch release."
+  }
+}

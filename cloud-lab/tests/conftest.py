@@ -9,6 +9,17 @@ import pytest
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
+@pytest.fixture(autouse=True)
+def no_real_aws_requests(monkeypatch):
+    """The local suite must never contact AWS, including instance metadata."""
+    from botocore.httpsession import URLLib3Session
+    monkeypatch.setenv("AWS_EC2_METADATA_DISABLED", "true")
+    monkeypatch.setenv("EVIDENCE_KMS_KEY_ARN", "arn:aws:kms:ap-northeast-2:222222222222:key/local-test-only")
+    def blocked(*args, **kwargs):
+        raise AssertionError("AWS HTTP requests are disabled in local tests")
+    monkeypatch.setattr(URLLib3Session, "send", blocked)
+
+
 @pytest.fixture
 def project_root():
     return PROJECT_ROOT

@@ -100,11 +100,11 @@ resource "aws_s3_bucket_policy" "alb_logs" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "ALBLogDelivery"
-        Effect = "Allow"
-        Principal = { AWS = "arn:aws:iam::600734575887:root" }
-        Action   = "s3:PutObject"
-        Resource = "${aws_s3_bucket.alb_logs.arn}/*"
+        Sid       = "ALBLogDelivery"
+        Effect    = "Allow"
+        Principal = { Service = "logdelivery.elasticloadbalancing.amazonaws.com" }
+        Action    = "s3:PutObject"
+        Resource  = "${aws_s3_bucket.alb_logs.arn}/alb/AWSLogs/${var.workload_account_id}/*"
       }
     ]
   })

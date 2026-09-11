@@ -1,0 +1,55 @@
+{
+  "timestamp_utc": "2026-09-11T09:07:18.555352+00:00",
+  "scope": "local only; no AWS plan/apply or live Linux service tests",
+  "passed": true,
+  "checks": [
+    {
+      "check": "OpenTofu format",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "check": "foundation provider init (backend disabled)",
+      "exit_code": 0,
+      "stdout": "\nInitializing provider plugins...\n- Reusing previous version of hashicorp/aws from the dependency lock file\n- Installing hashicorp/aws v5.82.0...\n- Installed hashicorp/aws v5.82.0 (signed, key ID 0C0AF313E5FD9F80)\n\nProviders are signed by their developers.\nIf you'd like to know more about provider signing, you can read about it here:\nhttps://opentofu.org/docs/cli/plugins/signing/\n\nOpenTofu has been successfully initialized!\n\nYou may now begin working with OpenTofu. Try running \"tofu plan\" to see\nany changes that are required for your infrastructure. All OpenTofu commands\nshould now work.\n\nIf you ever set or change modules or backend configuration for OpenTofu,\nrerun this command to reinitialize your working directory. If you forget, other\ncommands will detect it and remind you to do so if necessary.\n",
+      "stderr": ""
+    },
+    {
+      "check": "foundation validate",
+      "exit_code": 0,
+      "stdout": "Success! The configuration is valid.\n",
+      "stderr": ""
+    },
+    {
+      "check": "lab provider init (backend disabled)",
+      "exit_code": 0,
+      "stdout": "Initializing modules...\n- app_bootstrap in ..\\modules\\bootstrap\n- soc_bootstrap in ..\\modules\\bootstrap\n- web_bootstrap in ..\\modules\\bootstrap\n\nInitializing provider plugins...\n- Reusing previous version of hashicorp/tls from the dependency lock file\n- Reusing previous version of hashicorp/random from the dependency lock file\n- Reusing previous version of hashicorp/aws from the dependency lock file\n- Installing hashicorp/tls v4.0.6...\n- Installed hashicorp/tls v4.0.6 (signed, key ID 0C0AF313E5FD9F80)\n- Installing hashicorp/random v3.6.3...\n- Installed hashicorp/random v3.6.3 (signed, key ID 0C0AF313E5FD9F80)\n- Installing hashicorp/aws v5.82.0...\n- Installed hashicorp/aws v5.82.0 (signed, key ID 0C0AF313E5FD9F80)\n\nProviders are signed by their developers.\nIf you'd like to know more about provider signing, you can read about it here:\nhttps://opentofu.org/docs/cli/plugins/signing/\n\nOpenTofu has been successfully initialized!\n\nYou may now begin working with OpenTofu. Try running \"tofu plan\" to see\nany changes that are required for your infrastructure. All OpenTofu commands\nshould now work.\n\nIf you ever set or change modules or backend configuration for OpenTofu,\nrerun this command to reinitialize your working directory. If you forget, other\ncommands will detect it and remind you to do so if necessary.\n",
+      "stderr": ""
+    },
+    {
+      "check": "lab validate",
+      "exit_code": 0,
+      "stdout": "Success! The configuration is valid.\n",
+      "stderr": ""
+    },
+    {
+      "check": "automation provider init (backend disabled)",
+      "exit_code": 0,
+      "stdout": "\nInitializing provider plugins...\n- Reusing previous version of hashicorp/archive from the dependency lock file\n- Reusing previous version of hashicorp/aws from the dependency lock file\n- Installing hashicorp/archive v2.7.0...\n- Installed hashicorp/archive v2.7.0 (signed, key ID 0C0AF313E5FD9F80)\n- Installing hashicorp/aws v5.82.0...\n- Installed hashicorp/aws v5.82.0 (signed, key ID 0C0AF313E5FD9F80)\n\nProviders are signed by their developers.\nIf you'd like to know more about provider signing, you can read about it here:\nhttps://opentofu.org/docs/cli/plugins/signing/\n\nOpenTofu has been successfully initialized!\n\nYou may now begin working with OpenTofu. Try running \"tofu plan\" to see\nany changes that are required for your infrastructure. All OpenTofu commands\nshould now work.\n\nIf you ever set or change modules or backend configuration for OpenTofu,\nrerun this command to reinitialize your working directory. If you forget, other\ncommands will detect it and remind you to do so if necessary.\n",
+      "stderr": ""
+    },
+    {
+      "check": "automation validate",
+      "exit_code": 0,
+      "stdout": "Success! The configuration is valid.\n",
+      "stderr": ""
+    },
+    {
+      "check": "Python, shell and rendered bootstrap regression tests",
+      "exit_code": 0,
+      "stdout": "...............................................                          [100%]\n47 passed in 5.49s\n",
+      "stderr": ""
+    }
+  ]
+}

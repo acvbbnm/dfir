@@ -33,7 +33,18 @@ def lambda_handler(event, context):
             staging_objects.append(obj)
 
     jobs = []
+
     missing = []
+    for key in ('metadata_error', 'collection_error'):
+        if event.get(key):
+            missing.append({'stage': key, 'error': event[key]})
+    for result in collection_results:
+        if result.get('error') or result.get('errors') or result.get('status') in {'PARTIAL', 'FAILED', 'FAIL'}:
+            missing.append({'stage': 'collection', 'result': result})
+    if not collection_results:
+        missing.append({'stage': 'collection', 'error': 'No collection completion results'})
+    if event.get('metadata', {}).get('errors'):
+        missing.append({'stage': 'metadata', 'errors': event['metadata']['errors']})
     total_size = 0
 
     for obj in staging_objects:
@@ -52,6 +63,7 @@ def lambda_handler(event, context):
                 Body=body,
                 ContentType=resp.get("ContentType", "application/octet-stream"),
                 ServerSideEncryption="aws:kms",
+        SSEKMSKeyId=os.environ["EVIDENCE_KMS_KEY_ARN"],
                 Metadata={"sha256": sha256},
             )
 
@@ -93,6 +105,7 @@ def lambda_handler(event, context):
         Body=json.dumps(manifest, ensure_ascii=False, default=str).encode("utf-8"),
         ContentType="application/json",
         ServerSideEncryption="aws:kms",
+        SSEKMSKeyId=os.environ["EVIDENCE_KMS_KEY_ARN"],
     )
 
     ddb = boto3.resource("dynamodb", region_name=REGION)

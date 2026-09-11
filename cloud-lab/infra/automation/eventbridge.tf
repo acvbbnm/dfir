@@ -13,11 +13,11 @@ resource "aws_cloudwatch_event_bus_policy" "allow_workload" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "AllowWorkloadPutEvents"
-        Effect = "Allow"
+        Sid       = "AllowWorkloadPutEvents"
+        Effect    = "Allow"
         Principal = { AWS = "arn:aws:iam::${var.workload_account_id}:root" }
-        Action   = "events:PutEvents"
-        Resource = aws_cloudwatch_event_bus.security.arn
+        Action    = "events:PutEvents"
+        Resource  = aws_cloudwatch_event_bus.security.arn
       }
     ]
   })
@@ -25,6 +25,7 @@ resource "aws_cloudwatch_event_bus_policy" "allow_workload" {
 
 # high/critical → Step Functions 자동 사건 생성
 resource "aws_cloudwatch_event_rule" "auto_case" {
+  state          = var.collection_enabled ? "ENABLED" : "DISABLED"
   provider       = aws.security
   name           = "${var.project}-auto-case-creation"
   event_bus_name = aws_cloudwatch_event_bus.security.name
@@ -49,11 +50,11 @@ resource "aws_cloudwatch_event_target" "step_functions" {
 
   input_transformer {
     input_paths = {
-      alert_id = "$.detail.alert_id"
-      rule_name = "$.detail.rule_name"
-      severity = "$.detail.severity"
-      detected_at = "$.detail.detected_at"
-      target = "$.detail.target"
+      alert_id      = "$.detail.alert_id"
+      rule_name     = "$.detail.rule_name"
+      severity      = "$.detail.severity"
+      detected_at   = "$.detail.detected_at"
+      target        = "$.detail.target"
       signal_fields = "$.detail.signal_fields"
     }
 
@@ -81,9 +82,9 @@ resource "aws_iam_role" "eventbridge_sfn" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect = "Allow"
+        Effect    = "Allow"
         Principal = { Service = "events.amazonaws.com" }
-        Action = "sts:AssumeRole"
+        Action    = "sts:AssumeRole"
       }
     ]
   })

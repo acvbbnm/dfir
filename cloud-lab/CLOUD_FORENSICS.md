@@ -1,5 +1,8 @@
 # AWS 인프라·관측·증거 파이프라인 상세 설계
 
+> 2026-09-11 구현 보완: [로컬 검증 기록](results/LOCAL_VALIDATION.md)과 [실행·잔여 작업](LOCAL_DEVELOPMENT.md)을 확인한다. 현재 operate 모드는 SSM 계열 3개 + 일반 API 6개로 interface endpoint 총 9개다. 이전 2~3개 기준 비용표는 현재 IaC의 확정 견적이 아니며 실제 단가·실행 시간으로 재산정해야 한다. AWS 배포는 아직 수행하지 않았다.
+
+
 작성일: 2026-09-09 · 버전: 0.3 · 상태: 배포 전 설계
 
 이 문서는 [전체 계획](DESIGN.md)의 AWS 계정·권한·통신·로깅·증거 보존·조사 파이프라인을 구체화한다. 서비스·DMZ·WAF/IPS/EDR·로그·구축 순서는 [BUILD_AND_ATTACK.md](BUILD_AND_ATTACK.md), 수집·파서 재사용은 [OPEN_SOURCE.md](OPEN_SOURCE.md)를 따른다. 구현과 운영 검증이 끝난 상태를 의미하지 않는다.

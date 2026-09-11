@@ -3,7 +3,6 @@
   "StartAt": "ValidateInput",
   "TimeoutSeconds": 1800,
   "States": {
-
     "ValidateInput": {
       "Type": "Task",
       "Resource": "arn:aws:lambda:${region}:${security_account_id}:function:${project}-validate-case",
@@ -16,13 +15,14 @@
       "Next": "IsValid",
       "Catch": [
         {
-          "ErrorEquals": ["States.ALL"],
+          "ErrorEquals": [
+            "States.ALL"
+          ],
           "ResultPath": "$.error",
           "Next": "RecordFailure"
         }
       ]
     },
-
     "IsValid": {
       "Type": "Choice",
       "Choices": [
@@ -39,7 +39,6 @@
       ],
       "Default": "RecordFailure"
     },
-
     "PreserveMetadata": {
       "Type": "Task",
       "Resource": "arn:aws:lambda:${region}:${security_account_id}:function:${project}-preserve-metadata",
@@ -52,13 +51,14 @@
       "Next": "ParallelCollection",
       "Catch": [
         {
-          "ErrorEquals": ["States.ALL"],
+          "ErrorEquals": [
+            "States.ALL"
+          ],
           "ResultPath": "$.metadata_error",
           "Next": "ParallelCollection"
         }
       ]
     },
-
     "ParallelCollection": {
       "Type": "Parallel",
       "Branches": [
@@ -71,7 +71,8 @@
               "Parameters": {
                 "case_id.$": "$.case_id",
                 "target.$": "$.target",
-                "time_window_minutes": 15
+                "time_window_minutes": 15,
+                "trigger.$": "$.trigger"
               },
               "TimeoutSeconds": 300,
               "End": true
@@ -104,7 +105,10 @@
             },
             "SkipHost": {
               "Type": "Pass",
-              "Result": { "skipped": true, "reason": "no_instance_id" },
+              "Result": {
+                "skipped": true,
+                "reason": "no_instance_id"
+              },
               "End": true
             }
           }
@@ -114,32 +118,30 @@
       "Next": "VerifyIntegrity",
       "Catch": [
         {
-          "ErrorEquals": ["States.ALL"],
+          "ErrorEquals": [
+            "States.ALL"
+          ],
           "ResultPath": "$.collection_error",
           "Next": "VerifyIntegrity"
         }
       ]
     },
-
     "VerifyIntegrity": {
       "Type": "Task",
       "Resource": "arn:aws:lambda:${region}:${security_account_id}:function:${project}-verify-finalize",
-      "Parameters": {
-        "case_id.$": "$.case_id",
-        "collection_results.$": "$.collection_results"
-      },
       "ResultPath": "$.verification",
       "TimeoutSeconds": 120,
       "Next": "FinalStatus",
       "Catch": [
         {
-          "ErrorEquals": ["States.ALL"],
+          "ErrorEquals": [
+            "States.ALL"
+          ],
           "ResultPath": "$.verify_error",
           "Next": "CaseFailed"
         }
       ]
     },
-
     "FinalStatus": {
       "Type": "Choice",
       "Choices": [
@@ -156,35 +158,30 @@
       ],
       "Default": "CaseFailed"
     },
-
     "CaseReady": {
       "Type": "Pass",
       "Result": "READY",
       "ResultPath": "$.final_status",
       "End": true
     },
-
     "CasePartial": {
       "Type": "Pass",
       "Result": "PARTIAL",
       "ResultPath": "$.final_status",
       "End": true
     },
-
     "CaseFailed": {
       "Type": "Pass",
       "Result": "FAILED",
       "ResultPath": "$.final_status",
       "End": true
     },
-
     "SkipDuplicate": {
       "Type": "Pass",
       "Result": "DUPLICATE",
       "ResultPath": "$.final_status",
       "End": true
     },
-
     "RecordFailure": {
       "Type": "Pass",
       "Result": "VALIDATION_FAILED",

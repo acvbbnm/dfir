@@ -1,0 +1,5 @@
+# Activate only after the initial foundation apply has created the bucket.
+# Copy this file to backend.tf, then run init -migrate-state with backend configuration.
+terraform {
+  backend "s3" {}
+}

@@ -1,5 +1,5 @@
 resource "aws_kms_key" "workload_ebs" {
-  provider    = aws.security
+  provider    = aws.workload
   description = "EA Workload EBS 볼륨 암호화"
 
   key_usage                = "ENCRYPT_DECRYPT"
@@ -10,15 +10,15 @@ resource "aws_kms_key" "workload_ebs" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "SecurityAccountAdmin"
-        Effect = "Allow"
-        Principal = { AWS = "arn:aws:iam::${var.security_account_id}:root" }
-        Action   = "kms:*"
-        Resource = "*"
+        Sid       = "WorkloadAccountAdmin"
+        Effect    = "Allow"
+        Principal = { AWS = "arn:aws:iam::${var.workload_account_id}:root" }
+        Action    = "kms:*"
+        Resource  = "*"
       },
       {
-        Sid    = "WorkloadUseOnly"
-        Effect = "Allow"
+        Sid       = "WorkloadUseOnly"
+        Effect    = "Allow"
         Principal = { AWS = "arn:aws:iam::${var.workload_account_id}:root" }
         Action = [
           "kms:Encrypt",
@@ -42,7 +42,7 @@ resource "aws_kms_key" "workload_ebs" {
 }
 
 resource "aws_kms_alias" "workload_ebs" {
-  provider      = aws.security
+  provider      = aws.workload
   name          = "alias/${var.project}-workload-ebs"
   target_key_id = aws_kms_key.workload_ebs.key_id
 }
@@ -59,16 +59,28 @@ resource "aws_kms_key" "evidence_s3" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "SecurityAccountAdmin"
-        Effect = "Allow"
+        Sid       = "SecurityAccountAdmin"
+        Effect    = "Allow"
         Principal = { AWS = "arn:aws:iam::${var.security_account_id}:root" }
-        Action   = "kms:*"
-        Resource = "*"
+        Action    = "kms:*"
+        Resource  = "*"
+      },
+
+      {
+        Sid       = "CloudTrailDataKeys"
+        Effect    = "Allow"
+        Principal = { Service = "cloudtrail.amazonaws.com" }
+        Action    = ["kms:GenerateDataKey*", "kms:DescribeKey"]
+        Resource  = "*"
+        Condition = { StringEquals = {
+          "aws:SourceArn" = ["arn:aws:cloudtrail:${var.region}:${var.security_account_id}:trail/${var.project}-trail", "arn:aws:cloudtrail:${var.region}:${var.workload_account_id}:trail/${var.project}-workload-trail"]
+        } }
       },
       {
-        Sid    = "CollectionRoleEncrypt"
-        Effect = "Allow"
-        Principal = { AWS = "arn:aws:iam::${var.security_account_id}:role/${var.project}-collection-role" }
+        Sid       = "CollectionRoleEncrypt"
+        Effect    = "Allow"
+        Principal = { AWS = "arn:aws:iam::${var.security_account_id}:root" }
+        Condition = { ArnLike = { "aws:PrincipalArn" = "arn:aws:iam::${var.security_account_id}:role/${var.project}-lambda-*" } }
         Action = [
           "kms:Encrypt",
           "kms:GenerateDataKey*",
@@ -77,9 +89,10 @@ resource "aws_kms_key" "evidence_s3" {
         Resource = "*"
       },
       {
-        Sid    = "AnalystDecrypt"
-        Effect = "Allow"
-        Principal = { AWS = "arn:aws:iam::${var.security_account_id}:role/${var.project}-analyst-role" }
+        Sid       = "AnalystDecrypt"
+        Effect    = "Allow"
+        Principal = { AWS = "arn:aws:iam::${var.security_account_id}:root" }
+        Condition = { ArnEquals = { "aws:PrincipalArn" = "arn:aws:iam::${var.security_account_id}:role/${var.project}-analyst-role" } }
         Action = [
           "kms:Decrypt",
           "kms:DescribeKey"
@@ -110,15 +123,15 @@ resource "aws_kms_key" "evidence_ebs" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "SecurityAccountAdmin"
-        Effect = "Allow"
+        Sid       = "SecurityAccountAdmin"
+        Effect    = "Allow"
         Principal = { AWS = "arn:aws:iam::${var.security_account_id}:root" }
-        Action   = "kms:*"
-        Resource = "*"
+        Action    = "kms:*"
+        Resource  = "*"
       },
       {
-        Sid    = "WorkloadSnapshotCopy"
-        Effect = "Allow"
+        Sid       = "WorkloadSnapshotCopy"
+        Effect    = "Allow"
         Principal = { AWS = "arn:aws:iam::${var.workload_account_id}:root" }
         Action = [
           "kms:CreateGrant",

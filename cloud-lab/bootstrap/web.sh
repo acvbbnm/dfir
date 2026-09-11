@@ -1,85 +1,49 @@
 #!/bin/bash
 set -euo pipefail
-
-source /dev/stdin <<< "$(curl -s http://169.254.169.254/latest/meta-data/instance-id || true)"
-
-/bin/bash "$(dirname "$0")/base.sh" || true
-
+BOOTSTRAP_DIR="${EA_BOOTSTRAP_DIR:-/opt/ea-bootstrap}"
+# shellcheck source=/dev/null
+source "$BOOTSTRAP_DIR/environment.sh"
+: "${APP_PRIVATE_IP:?APP_PRIVATE_IP is required}"
+: "${ALB_SUBNET_CIDRS:?ALB_SUBNET_CIDRS is required}"
+/bin/bash "$BOOTSTRAP_DIR/base.sh"
 export DEBIAN_FRONTEND=noninteractive
-
-# Nginx
-apt-get install -y nginx
-systemctl enable nginx
-
-# Suricata
-add-apt-repository -y ppa:oisf/suricata-stable
-apt-get update -y
-apt-get install -y suricata
-
-# NFQUEUE inline 설정
-cat > /etc/suricata/suricata-ea.yaml << 'SURICATA_CONF'
-%YAML 1.1
----
-vars:
-  address-groups:
-    HOME_NET: "[10.60.0.0/16]"
-    EXTERNAL_NET: "!$HOME_NET"
-
-nfq:
-  - mode: accept
-    id: 0
-    fail-open: yes
-
-outputs:
-  - eve-log:
-      enabled: yes
-      filetype: regular
-      filename: /var/log/suricata/eve.json
-      types:
-        - alert
-        - http
-        - dns
-        - tls
-        - flow
-        - stats:
-            enabled: yes
-            totals: yes
-            threads: no
-SURICATA_CONF
-
-# iptables NFQUEUE — ALB→WEB 양방향
-iptables -I FORWARD -i ens5 -p tcp --dport 8080 -j NFQUEUE --queue-num 0
-iptables -I FORWARD -o ens5 -p tcp --sport 8080 -j NFQUEUE --queue-num 0
-
-# 영구화
-apt-get install -y iptables-persistent
-netfilter-persistent save
-
-# Nginx reverse proxy 설정
-cat > /etc/nginx/sites-available/default << 'NGINX_CONF'
-server {
-    listen 8080;
-    server_name _;
-
-    location /health {
-        return 200 'ok';
-        add_header Content-Type text/plain;
-    }
-
-    location / {
-        proxy_pass http://APP_PRIVATE_IP:8080;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    access_log /var/log/nginx/access.log combined;
-    error_log /var/log/nginx/error.log warn;
-}
-NGINX_CONF
-
+# Ubuntu 24.04 repositories; installed versions are recorded after installation.
+apt-get install -y nginx suricata iptables-persistent
+install -d /etc/suricata/rules /etc/systemd/system/suricata.service.d
+install -m 0644 "$BOOTSTRAP_DIR/application/suricata/local.rules" /etc/suricata/rules/local.rules
+install -m 0644 "$BOOTSTRAP_DIR/application/suricata/suricata-ea.yaml" /etc/suricata/suricata-ea.yaml
+python3 - "$BOOTSTRAP_DIR/application/nginx/default.conf" <<'PY'
+import ipaddress, os, pathlib, sys
+app = str(ipaddress.IPv4Address(os.environ['APP_PRIVATE_IP']))
+cidrs = [str(ipaddress.IPv4Network(c)) for c in os.environ['ALB_SUBNET_CIDRS'].split(',')]
+text = pathlib.Path(sys.argv[1]).read_text().replace('APP_PRIVATE_IP', app)
+text = text.replace('ALB_TRUST_DIRECTIVES', '\n    '.join('set_real_ip_from ' + c + ';' for c in cidrs))
+pathlib.Path('/etc/nginx/sites-available/default').write_text(text)
+PY
+nginx -t
+suricata -T -c /etc/suricata/suricata-ea.yaml
+cat > /etc/systemd/system/suricata.service.d/ea-nfqueue.conf <<'UNIT'
+[Service]
+Type=simple
+ExecStart=
+ExecStart=/usr/bin/suricata -c /etc/suricata/suricata-ea.yaml -q 0
+Restart=on-failure
+UNIT
+systemctl daemon-reload
+systemctl enable nginx suricata
 systemctl restart suricata
+systemctl is-active --quiet suricata
+# Nginx terminates traffic locally: queue INPUT/OUTPUT, not routed FORWARD packets.
+# Retain established packets too. queue-bypass is the documented lab fail-open policy.
+IFS=',' read -r -a alb_cidrs <<< "$ALB_SUBNET_CIDRS"
+for cidr in "${alb_cidrs[@]}"; do
+  iptables -C INPUT -s "$cidr" -p tcp --dport 8080 -j NFQUEUE --queue-num 0 --queue-bypass 2>/dev/null ||
+    iptables -I INPUT -s "$cidr" -p tcp --dport 8080 -j NFQUEUE --queue-num 0 --queue-bypass
+  iptables -C OUTPUT -d "$cidr" -p tcp --sport 8080 -j NFQUEUE --queue-num 0 --queue-bypass 2>/dev/null ||
+    iptables -I OUTPUT -d "$cidr" -p tcp --sport 8080 -j NFQUEUE --queue-num 0 --queue-bypass
+done
+netfilter-persistent save
 systemctl restart nginx
-
-echo "EA WEB setup complete"
+curl --fail --silent --show-error http://127.0.0.1:8080/health
+dpkg-query -W nginx suricata > /opt/ea-bootstrap/installed-web.tsv
+echo "EA WEB installation complete; end-to-end and IPS verdict tests are still required"

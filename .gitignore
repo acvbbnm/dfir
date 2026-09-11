@@ -24,3 +24,6 @@ Thumbs.db
 
 # Docker volumes
 es-data/
+
+# Local cloud validation environment
+/.venv-cloud/

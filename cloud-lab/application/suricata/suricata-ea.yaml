@@ -5,6 +5,7 @@ vars:
   address-groups:
     HOME_NET: "[10.60.0.0/16]"
     EXTERNAL_NET: "!$HOME_NET"
+    ALB_CLIENTS: "[10.60.1.0/24,10.60.11.0/24]"
     HTTP_SERVERS: "[10.60.2.0/24]"
     SQL_SERVERS: "[10.60.4.0/24]"
 
@@ -13,15 +14,14 @@ vars:
     SQL_PORTS: "[3306]"
 
 default-rule-path: /etc/suricata/rules
+classification-file: /etc/suricata/classification.config
 
 rule-files:
-  - suricata.rules
   - local.rules
 
 nfq:
-  - mode: accept
-    id: 0
-    fail-open: yes
+  mode: accept
+  fail-open: yes
 
 outputs:
   - eve-log:

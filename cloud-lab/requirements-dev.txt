@@ -1,0 +1,5 @@
+pytest==9.1.1
+boto3==1.43.92
+jsonschema==4.26.0
+python-hcl2==8.1.4
+requests==2.34.2

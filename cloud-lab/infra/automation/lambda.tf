@@ -31,8 +31,19 @@ locals {
 data "archive_file" "lambda" {
   for_each = local.lambda_functions
 
-  type        = "zip"
-  source_dir  = "${path.module}/lambda_src/${replace(each.key, "-", "_")}"
+  type = "zip"
+
+  source {
+    content  = file("${path.module}/lambda_src/${replace(each.key, "-", "_")}/handler.py")
+    filename = "handler.py"
+  }
+  dynamic "source" {
+    for_each = fileset("${path.module}/lambda_src/common", "*.py")
+    content {
+      content  = file("${path.module}/lambda_src/common/${source.value}")
+      filename = "common/${source.value}"
+    }
+  }
   output_path = "${path.module}/lambda_${each.key}.zip"
 }
 
@@ -53,14 +64,15 @@ resource "aws_lambda_function" "this" {
 
   environment {
     variables = {
-      PROJECT                = var.project
-      REGION                 = var.region
-      SECURITY_ACCOUNT_ID    = var.security_account_id
-      WORKLOAD_ACCOUNT_ID    = var.workload_account_id
-      CASES_TABLE            = aws_dynamodb_table.cases.name
-      DEDUP_TABLE            = aws_dynamodb_table.dedup.name
-      STAGING_BUCKET         = var.s3_evidence_staging_bucket
-      FINAL_BUCKET           = var.s3_evidence_final_bucket
+      EVIDENCE_KMS_KEY_ARN = var.kms_evidence_s3_arn
+      PROJECT              = var.project
+      REGION               = var.region
+      SECURITY_ACCOUNT_ID  = var.security_account_id
+      WORKLOAD_ACCOUNT_ID  = var.workload_account_id
+      CASES_TABLE          = aws_dynamodb_table.cases.name
+      DEDUP_TABLE          = aws_dynamodb_table.dedup.name
+      STAGING_BUCKET       = var.s3_evidence_staging_bucket
+      FINAL_BUCKET         = var.s3_evidence_final_bucket
     }
   }
 
@@ -165,7 +177,8 @@ resource "aws_iam_role_policy" "lambda_s3" {
 resource "aws_iam_role_policy" "lambda_assume_workload" {
   provider = aws.security
   name     = "assume-workload"
-  role     = aws_iam_role.lambda["preserve-metadata"].id
+  for_each = toset(["validate-case", "preserve-metadata", "collect-aws-logs"])
+  role     = aws_iam_role.lambda[each.key].id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -210,24 +223,6 @@ resource "aws_iam_role_policy" "lambda_ssm" {
         Effect   = "Allow"
         Action   = "sts:AssumeRole"
         Resource = "arn:aws:iam::${var.workload_account_id}:role/${var.project}-collection-target"
-      }
-    ]
-  })
-}
-
-# verify-finalize 전용: S3 CopyObject
-resource "aws_iam_role_policy" "lambda_s3_copy" {
-  provider = aws.security
-  name     = "s3-copy"
-  role     = aws_iam_role.lambda["verify-finalize"].id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = "s3:CopyObject"
-        Resource = "${var.s3_evidence_final_arn}/*"
       }
     ]
   })
