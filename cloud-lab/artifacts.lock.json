@@ -1,0 +1,56 @@
+{
+  "schema_version": "1.0",
+  "resolved_at": "2026-09-11T09:31:38.907715+00:00",
+  "elastic": {
+    "version": "8.19.20",
+    "agent_url": "https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-8.19.20-linux-x86_64.tar.gz",
+    "agent_sha512": "92568f4dd7bf3ddde282e599041fda5c9a122f198d11990779fd7d22f6052806b113c60a73a1b00f143d59308325aa3582b052480231ea3a0213de0f4cdac03f",
+    "checksum_url": "https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-8.19.20-linux-x86_64.tar.gz.sha512",
+    "installation": "Signed Elastic APT repository; exact stack version"
+  },
+  "ubuntu_container": "ubuntu@sha256:224a1869083a311ef3f13648a154ba79832fbef6364d31493642ca03082da254",
+  "artifacts": {
+    "wordpress": {
+      "version": "7.1",
+      "url": "https://wordpress.org/wordpress-7.1.tar.gz",
+      "filename": "wordpress.tar.gz",
+      "license": "GPL-2.0-or-later",
+      "sha256": "05a5f89138f632b7329f1202f2a0553c5f7fe4daf8e4b9ca7ebae9b9466b9e86",
+      "hash_source": "SHA256 computed over HTTPS download; not an independent signature"
+    },
+    "velociraptor": {
+      "version": "v0.77.2",
+      "url": "https://github.com/Velocidex/velociraptor/releases/download/v0.77.2/velociraptor-v0.77.2-linux-amd64",
+      "filename": "velociraptor",
+      "sha256": "6c4c23c466d892788ff56ddcd3a31f844e4c0d797ade454c5e2625eb9e427077",
+      "hash_source": "GitHub release digest",
+      "license": "AGPL-3.0"
+    },
+    "dvwa": {
+      "version": "2.5",
+      "commit": "a96943dc1f52f390ee5df72144660636c4b7dd06",
+      "url": "https://codeload.github.com/digininja/DVWA/tar.gz/a96943dc1f52f390ee5df72144660636c4b7dd06",
+      "filename": "dvwa.tar.gz",
+      "license": "GPL-3.0",
+      "sha256": "be73e29b187bd9ceadbe7428217a0547687f38557412e13fb32972c40cb4fb35",
+      "hash_source": "SHA256 computed over HTTPS download; not an independent signature"
+    },
+    "cloudgoat": {
+      "version": "v2.5.0",
+      "commit": "abf1ba8f5e47d7ced750fdfa025d51c99f1a43ed",
+      "url": "https://codeload.github.com/RhinoSecurityLabs/cloudgoat/tar.gz/abf1ba8f5e47d7ced750fdfa025d51c99f1a43ed",
+      "filename": "cloudgoat.tar.gz",
+      "license": "BSD-3-Clause",
+      "sha256": "2438421afc1936460ded31f8a989a96e23dc8cc3b5594b213fae468a2b5745eb",
+      "hash_source": "SHA256 computed over HTTPS download; not an independent signature"
+    },
+    "rds_ca": {
+      "version": "downloaded-2026-09-11",
+      "url": "https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem",
+      "filename": "rds-ca.pem",
+      "purpose": "RDS TLS trust bundle",
+      "sha256": "e5bb2084ccf45087bda1c9bffdea0eb15ee67f0b91646106e466714f9de3c7e3",
+      "hash_source": "SHA256 computed over HTTPS download; not an independent signature"
+    }
+  }
+}

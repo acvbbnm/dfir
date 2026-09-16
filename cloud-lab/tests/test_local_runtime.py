@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -16,8 +17,25 @@ import pytest
 def load(path):
     spec = importlib.util.spec_from_file_location(path.parent.name + '_' + path.stem, path)
     module = importlib.util.module_from_spec(spec)
+    # Lambda packaging places the shared `common` package alongside handler.py, so the
+    # package root must be importable when a handler is loaded as a standalone module.
+    package_root = str(path.parent.parent)
+    if package_root not in sys.path:
+        sys.path.insert(0, package_root)
     spec.loader.exec_module(module)
     return module
+
+
+class _Body:
+    """Minimal streaming body matching botocore's read(size)/close() contract."""
+    def __init__(self, *chunks):
+        self._chunks = list(chunks)
+
+    def read(self, size=-1):
+        return self._chunks.pop(0) if self._chunks else b''
+
+    def close(self):
+        pass
 
 
 def command(name, env):
@@ -40,9 +58,10 @@ def rendered(tmp_path_factory):
     }}}
     (work / 'main.tf.json').write_text(json.dumps(config), encoding='utf-8')
     subprocess.run([tofu, 'init', '-backend=false', '-input=false', '-no-color'], cwd=work, check=True, capture_output=True)
-    expr = 'jsonencode({for k, v in module.bootstrap : k => v.user_data_base64})\n'
+    expr = 'jsonencode({for k, v in module.bootstrap : k => base64gzip(v.cloud_config)})\n'
     subprocess.run([tofu, 'validate', '-no-color'], cwd=work, check=True, capture_output=True)
-    proc = subprocess.run([tofu, 'console', '-no-color'], input=expr, cwd=work, check=True, text=True, encoding='utf-8', capture_output=True)
+    proc = subprocess.run([tofu, 'console', '-no-color'], input=expr, cwd=work, text=True, encoding='utf-8', capture_output=True)
+    assert proc.returncode == 0, proc.stderr
     return json.loads(json.loads(proc.stdout)), environment, work
 
 
@@ -50,7 +69,7 @@ def rendered(tmp_path_factory):
 def test_actual_cloud_config_contains_required_files(rendered, role):
     outputs, _, _ = rendered
     compressed = base64.b64decode(outputs[role])
-    assert len(compressed) <= 16384
+    assert len(gzip.decompress(compressed)) <= 1048576  # Versioned S3 bundle, not EC2 user-data.
     document = gzip.decompress(compressed).decode()
     assert document.startswith('#cloud-config\n')
     config = json.loads(document.split('\n', 1)[1])
@@ -135,31 +154,45 @@ def test_soc_repeated_setup_preserves_data_and_fstab(project_root, tmp_path):
     assert not any(c[0] in {'mkfs.ext4', 'mount'} for c in calls)
 
 
-@pytest.mark.parametrize('statuses,expected', [(['Pending', 'Delayed', 'InProgress', 'Success'], 'Success'), (['Failed'], 'PARTIAL'), (['TimedOut'], 'PARTIAL')])
+@pytest.mark.parametrize('statuses,expected', [(['Pending', 'Delayed', 'InProgress', 'Success'], 'SUCCESS'), (['Failed'], 'PARTIAL'), (['TimedOut'], 'PARTIAL')])
 def test_ssm_waits_for_terminal_result(project_root, monkeypatch, statuses, expected):
     module = load(project_root/'infra/automation/lambda_src/trigger_host_collection/handler.py')
-    sts, ssm = MagicMock(), MagicMock()
+    sts, ssm, s3 = MagicMock(), MagicMock(), MagicMock()
     sts.assume_role.return_value = {'Credentials': {'AccessKeyId': 'test', 'SecretAccessKey': 'test', 'SessionToken': 'test'}}
     ssm.send_command.return_value = {'Command': {'CommandId': 'command'}}
-    ssm.get_command_invocation.side_effect = [{'Status': s} for s in statuses]
-    monkeypatch.setattr(module.boto3, 'client', lambda name, **kwargs: {'sts': sts, 'ssm': ssm}[name])
+    ssm.get_command_invocation.side_effect = [{'Status': s, 'StandardOutputContent': json.dumps({'status':'SUCCESS','sha256':'a'*64,'size_bytes':10})} for s in statuses]
+    s3.generate_presigned_url.return_value = 'https://bucket.s3.ap-northeast-2.amazonaws.com/cases/case-1/host-triage/i-test/triage.zip?sig'
+    s3.head_object.return_value = {'ContentLength': 10, 'VersionId': 'v1'}
+    monkeypatch.setattr(module.boto3, 'client', lambda name, **kwargs: {'sts': sts, 'ssm': ssm, 's3': s3}[name])
     monkeypatch.setattr(module.time, 'sleep', lambda _: None)
     result = module.lambda_handler({'case_id': 'case-1', 'instance_id': 'i-test', 'ssm_document': 'untrusted-override'}, None)
     assert result['status'] == expected
     assert ssm.get_command_invocation.call_count == len(statuses)
+    # The SSM document name is fixed server-side; an event-supplied override must be ignored.
     assert ssm.send_command.call_args.kwargs['DocumentName'] == 'ea-VelociraptorOfflineCollect'
 
 
 def test_failed_host_collection_cannot_be_ready(project_root, monkeypatch):
     module = load(project_root/'infra/automation/lambda_src/verify_finalize/handler.py')
+    monkeypatch.setenv('STAGING_BUCKET', 'ea-staging')
+    monkeypatch.setenv('FINAL_BUCKET', 'ea-final')
+    from botocore.exceptions import ClientError
     s3, ddb = MagicMock(), MagicMock()
-    s3.get_paginator.return_value.paginate.return_value = [{'Contents': [{'Key': 'cases/case-1/pre-response.json', 'Size': 2}]}]
-    s3.get_object.return_value = {'Body': SimpleNamespace(read=lambda: b'{}')}
+    s3.get_paginator.return_value.paginate.return_value = [{'Contents': [{'Key': 'cases/CASE-1/pre-response.json', 'Size': 2}]}]
+    # One staging object verifies and copies cleanly; the final-bucket existence probe is a miss.
+    s3.head_object.side_effect = [
+        {'VersionId': 'sv1', 'ContentLength': 2, 'Metadata': {}, 'ContentType': 'application/json'},
+        ClientError({'Error': {'Code': '404'}}, 'HeadObject'),
+    ]
+    s3.get_object.return_value = {'Body': _Body(b'{}')}
+    s3.copy_object.return_value = {'VersionId': 'fv1'}
+    s3.put_object.return_value = {'VersionId': 'mv1'}
     monkeypatch.setattr(module.boto3, 'client', lambda *a, **k: s3)
     monkeypatch.setattr(module.boto3, 'resource', lambda *a, **k: ddb)
-    result = module.lambda_handler({'case_id': 'case-1', 'collection_results': [{'status': 'PARTIAL', 'error': 'SSM failed'}]}, None)
+    # A verified object exists, but the collection stage reported PARTIAL: the case must not be READY.
+    result = module.lambda_handler({'case_id': 'CASE-1', 'collection_results': [{'status': 'PARTIAL', 'error': 'SSM failed'}]}, None)
     assert result['integrity'] == 'PARTIAL'
-    assert ddb.Table.return_value.update_item.call_args.kwargs['ExpressionAttributeValues'][':status'] == 'PARTIAL'
+    assert ddb.Table.return_value.update_item.call_args.kwargs['ExpressionAttributeValues'][':s'] == 'PARTIAL'
 
 
 def test_iac_database_and_endpoint_boundaries(project_root):
@@ -247,8 +280,23 @@ def test_unverifiable_target_never_reserves_a_case(project_root, monkeypatch):
     ec2.describe_instances.side_effect = RuntimeError('AccessDenied test')
     monkeypatch.setattr(module.boto3, 'client', lambda name, **kwargs: {'sts': sts, 'ec2': ec2}[name])
     monkeypatch.setattr(module.boto3, 'resource', lambda *args, **kwargs: ddb)
-    result = module.lambda_handler({'case_id': 'case-1', 'trigger': {'alert_id': 'a', 'rule_name': 'rule'},
+    result = module.lambda_handler({'case_id': 'CASE-1', 'trigger': {'alert_id': 'a', 'rule_name': 'rule'},
                                    'target': {'type': 'ec2', 'instance_id': 'i-test'}}, None)
     assert result['status'] == 'INVALID'
     ddb.Table.assert_not_called()
     assert '111111111111:role/ea-collection-target' in sts.assume_role.call_args.kwargs['RoleArn']
+
+
+def test_validate_case_enforces_canonical_case_id(project_root, monkeypatch):
+    """Entry validation must match the ^CASE-...$ contract every downstream stage enforces,
+    so a case that later stages would reject is never reserved in DynamoDB."""
+    module = load(project_root/'infra/automation/lambda_src/validate_case/handler.py')
+    monkeypatch.setenv('WORKLOAD_ACCOUNT_ID', '111111111111')
+    ddb = MagicMock()
+    monkeypatch.setattr(module.boto3, 'client', lambda *a, **k: (_ for _ in ()).throw(AssertionError('no AWS before ID check')))
+    monkeypatch.setattr(module.boto3, 'resource', lambda *a, **k: ddb)
+    event = {'case_id': 'case-1', 'trigger': {'alert_id': 'a', 'rule_name': 'rule'},
+             'target': {'type': 'ec2', 'instance_id': 'i-test'}}
+    result = module.lambda_handler(event, None)
+    assert result == {'status': 'INVALID', 'reason': 'invalid case ID'}
+    ddb.Table.assert_not_called()

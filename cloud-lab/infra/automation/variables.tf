@@ -51,3 +51,13 @@ variable "common_tags" {
     ManagedBy   = "opentofu"
   }
 }
+
+variable "audit_extra_regions" {
+  description = "Additional experiment event regions beyond primary and us-east-1."
+  type        = list(string)
+  default     = []
+  validation {
+    condition     = length(var.audit_extra_regions) <= 3 && alltrue([for region in var.audit_extra_regions : can(regex("^[a-z]{2}(-[a-z]+)+-[0-9]$", region))])
+    error_message = "Select at most three explicit AWS regions."
+  }
+}

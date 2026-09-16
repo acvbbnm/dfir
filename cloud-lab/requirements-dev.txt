@@ -3,3 +3,6 @@ boto3==1.43.92
 jsonschema==4.26.0
 python-hcl2==8.1.4
 requests==2.34.2
+
+PyMySQL==1.1.2
+PyYAML==6.0.3

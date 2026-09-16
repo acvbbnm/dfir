@@ -1,0 +1,684 @@
+{
+  "schema_version": "1.1",
+  "status": "specifications; AWS acceptance pending",
+  "scope": "owned private lab and explicit synthetic resources only",
+  "common_requirements": [
+    "AWS account/region/resource allowlist",
+    "normal canary arrival in original store and SIEM",
+    "explicit expected effect and expected non-events",
+    "policy/tool versions",
+    "request/object/time/cost limits",
+    "cleanup and recovery evidence"
+  ],
+  "coverage_stages": [
+    "observed",
+    "parsed",
+    "detected",
+    "blocked",
+    "collected"
+  ],
+  "scenarios": [
+    {
+      "scenario_id": "N0",
+      "readiness": "조건부·우선",
+      "prerequisites": [
+        "정상 회원/관리/DB/API 행위와 canary, 시간창·요청 수를 고정. 현재 S0의 GET 2회보다 넓은 기준선이 필요"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": false
+    },
+    {
+      "scenario_id": "W1",
+      "readiness": "조건부",
+      "prerequisites": [
+        "DVWA 초기화·인증/보안수준·합성 DB 행 고정. 실제 추가 행 조회와 차단 후 미조회 대조. WAF marker 통과를 SQLi 성공으로 세지 않음"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [
+        "ea-waf-match",
+        "ea-suricata-alert"
+      ],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": false
+    },
+    {
+      "scenario_id": "W2",
+      "readiness": "조건부",
+      "prerequisites": [
+        "DVWA 취약 기능·쓰기/실행 권한 확인. 무해한 marker의 파일 hash·프로세스와 연결. 일반 업로드나 HTTP 200만으로 RCE 판정 금지"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [
+        "ea-waf-match",
+        "ea-endpoint-alert"
+      ],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": false
+    },
+    {
+      "scenario_id": "W3",
+      "readiness": "조건부",
+      "prerequisites": [
+        "전용 테스트 계정의 실패→성공, 정상 사용자 대조, 집계 규칙. S2의 존재하지 않는 계정 실패만으로 계정 탈취 검증 불가"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [
+        "ea-login-burst"
+      ],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": false
+    },
+    {
+      "scenario_id": "W4",
+      "readiness": "조건부",
+      "prerequisites": [
+        "사설 ALB만 대상, 도구/경로/요청 수·시간 한도 고정. 실제 SID와 매칭 입력, 정상 UA 대조 필요"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [
+        "ea-suricata-alert"
+      ],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": false
+    },
+    {
+      "scenario_id": "W5",
+      "readiness": "전용 환경",
+      "prerequisites": [
+        "고정 버전의 별도 취약 앱/플러그인, 정확한 취약점·파일 범위 필요. 인증 우회와 LFI는 별도 변형"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [
+        "ea-waf-match"
+      ],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": true
+    },
+    {
+      "scenario_id": "H1",
+      "readiness": "조건부·기대 로그 수정",
+      "prerequisites": [
+        "통제된 사설 수신처·포트별 허용/거부 대조. WEB IPS가 APP egress를 감시한다고 가정하지 않음"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": false
+    },
+    {
+      "scenario_id": "H2",
+      "readiness": "조건부·수집 확장",
+      "prerequisites": [
+        "사용자/관리 권한별 지속성 marker와 제거 확인. cron/systemd/SSH 원본 수집 경로 추가"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": false
+    },
+    {
+      "scenario_id": "H3",
+      "readiness": "전용 변조 대상",
+      "prerequisites": [
+        "합성 로그 파일과 이미 전송한 복사본 대조. 실제 중앙 증거·필수 감사 로그 삭제를 공통 절차에 넣지 않음"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": true
+    },
+    {
+      "scenario_id": "C1",
+      "readiness": "전용 환경·전제 수정",
+      "prerequisites": [
+        "별도 SSRF 앱, IMDS 버전·요청 기능·권한 명시. Flow IMDS 항목 제거, 앱/호스트에서 관측 가능한 근거 선정"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": true
+    },
+    {
+      "scenario_id": "C2",
+      "readiness": "조건부",
+      "prerequisites": [
+        "제한된 역할의 허용/거부 API 대조. principal/session·사용 위치 연결, 글로벌/리전 STS 수집 구분"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": false
+    },
+    {
+      "scenario_id": "C3",
+      "readiness": "조건부·범위 조정",
+      "prerequisites": [
+        "현재는 앱 secret 2개. 제한 횟수의 정상/허용 밖 secret 대조부터 시작; 대량 조회에는 별도 합성 secret·규칙 필요"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [
+        "ea-secret-read"
+      ],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": false
+    },
+    {
+      "scenario_id": "I1",
+      "readiness": "전용 환경·이벤트 수정",
+      "prerequisites": [
+        "제한된 실험 role/instance profile/생성 자원 필요. PassRole 독립 이벤트 대신 자원 생성·역할 할당 API의 파라미터 검증"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [
+        "ea-iam-change",
+        "ea-instance-launch"
+      ],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": true
+    },
+    {
+      "scenario_id": "I2",
+      "readiness": "전용 환경",
+      "prerequisites": [
+        "제한된 다중 버전 실험 정책과 복원 절차. SetDefaultPolicyVersion의 주체·선택 버전·실제 권한 변화 대조"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [
+        "ea-iam-change"
+      ],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": true
+    },
+    {
+      "scenario_id": "I3",
+      "readiness": "전용 권한/자원",
+      "prerequisites": [
+        "기본 APP에서 성공 불가. 폐기 가능한 사용자/키/프로필만 대상으로 생성·비활성·삭제 확인"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [
+        "ea-iam-change"
+      ],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": true
+    },
+    {
+      "scenario_id": "I4",
+      "readiness": "전용 환경",
+      "prerequisites": [
+        "실험 Lambda·resource policy·제한 principal 필요. 생성/정책 변경과 실행 증거를 분리"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [
+        "ea-lambda-invoke"
+      ],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": true
+    },
+    {
+      "scenario_id": "D1",
+      "readiness": "전용 자료·로그 보완",
+      "prerequisites": [
+        "합성 S3 bucket/prefix, 제한 GetObject 권한·data event. 건수·바이트·원본 hash 대조"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [
+        "ea-s3-read-burst"
+      ],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": true
+    },
+    {
+      "scenario_id": "D2",
+      "readiness": "전용 정책 대상",
+      "prerequisites": [
+        "비업무 버킷과 지정 계정만 허용. 변경 전/후 policy 및 원복, AccessDenied 대조"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [
+        "ea-s3-change"
+      ],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": true
+    },
+    {
+      "scenario_id": "D3",
+      "readiness": "전용 환경·키 설계",
+      "prerequisites": [
+        "RDS/EBS/AMI 분리. RDS 고객 관리 키·공유/copy/restore 권한, 수신 계정의 복사 완료 확인"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [
+        "ea-rds-share",
+        "ea-ec2-share"
+      ],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": true
+    },
+    {
+      "scenario_id": "D4",
+      "readiness": "전용 앱·로그 보완",
+      "prerequisites": [
+        "URL 생성과 실제 다운로드를 구분. 앱의 발급 기록·만료/범위·S3 data event 대조; URL 자체는 비밀값으로 다룸"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": true
+    },
+    {
+      "scenario_id": "E1",
+      "readiness": "전용 trail·판정 수정",
+      "prerequisites": [
+        "중앙 원본 파이프라인과 분리한 실험 trail에서 중단/재개. 과거 로그 보존과 미래 로그 누락을 별도 측정"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [
+        "ea-audit-change"
+      ],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": true
+    },
+    {
+      "scenario_id": "E2",
+      "readiness": "전용 flow/DNS 설정",
+      "prerequisites": [
+        "실험용 로깅 설정만 제거·복원. 삭제 API 로그와 canary 수집 중단/재개를 대조"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": true
+    },
+    {
+      "scenario_id": "E3",
+      "readiness": "전용 버킷·판정 수정",
+      "prerequisites": [
+        "합성 버전과 lifecycle 정책, 적용/삭제/잔존 증거 확인. 미구현 복제분 보존을 기대하지 않음"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [
+        "ea-s3-change"
+      ],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": true
+    },
+    {
+      "scenario_id": "X1",
+      "readiness": "전용 합성 자료",
+      "prerequisites": [
+        "소수 합성 객체·버전, 삭제/덮어쓰기 유형별 복구와 hash 확인. 모든 버전 삭제까지 복구 가능하다고 가정하지 않음"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [
+        "ea-s3-change"
+      ],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": true
+    },
+    {
+      "scenario_id": "X2",
+      "readiness": "전용 폐기 자원",
+      "prerequisites": [
+        "삭제용 snapshot/AMI만 허용 목록에 지정. 포렌식 보존본과 Terraform 상태 자원 제외"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": true
+    },
+    {
+      "scenario_id": "K1",
+      "readiness": "선행 단위 미완료",
+      "prerequisites": [
+        "C1+D1과 최소 역할 경로 확립 후 조립. 추가 AssumeRole 필요 여부 명시, Capital One 축소 모델로 표현"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": true
+    },
+    {
+      "scenario_id": "K2",
+      "readiness": "선행 단위 미완료",
+      "prerequisites": [
+        "W2/H/C1/I1/I3 각각 성공·거부 확인 후 연결. SQLi 데이터 조회가 곧 RCE라는 연결 제거"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": true
+    },
+    {
+      "scenario_id": "K3",
+      "readiness": "선행 단위 미완료",
+      "prerequisites": [
+        "K2+전용 E1/E2 및 R05/R07 복구 기준. 원본 보존·수집 공백·실제 격리·접근 복원을 독립 평가"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": true
+    },
+    {
+      "scenario_id": "K4",
+      "readiness": "전용 자격증명",
+      "prerequisites": [
+        "최소 권한 단기 실험 자격증명만 지정. 노출 시각의 독립 정답 기록과 사용 시각 대조; 실제 키를 외부 공개하지 않음"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [
+        "ea-iam-change"
+      ],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": true
+    },
+    {
+      "scenario_id": "K5",
+      "readiness": "축소 설계 필요",
+      "prerequisites": [
+        "대형/다수 자원·실제 채굴 제외. 소형 단기 생성 또는 합성 이벤트를 구분하고 한도/정리 검증"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [
+        "ea-instance-launch"
+      ],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": true
+    },
+    {
+      "scenario_id": "K6",
+      "readiness": "조건부·증거 보완",
+      "prerequisites": [
+        "APP의 허용 DB 계정과 합성 데이터 범위. secret 열람과 실제 SQL/덤프 결과·세션 근거 연결"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [
+        "ea-secret-read"
+      ],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": true
+    },
+    {
+      "scenario_id": "K7",
+      "readiness": "전용 환경·키 설계",
+      "prerequisites": [
+        "소스/수신 통제 계정·리전, RDS/EBS 분기와 복사본 수명·비용. 공유만으로 유출/보존 완료 판정 금지"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [
+        "ea-rds-share",
+        "ea-ec2-share"
+      ],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": true
+    },
+    {
+      "scenario_id": "K8",
+      "readiness": "전용 환경·단기화",
+      "prerequisites": [
+        "임시 사용자/Lambda/role/userdata 흔적 목록과 완전 회수. 주 단위 유지 대신 단기 행위·표시된 시간축 재생"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [
+        "ea-iam-change",
+        "ea-lambda-invoke"
+      ],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": true
+    },
+    {
+      "scenario_id": "K9",
+      "readiness": "전용 DNS 수신처",
+      "prerequisites": [
+        "통제된 DNS 서버/영역과 합성 payload, 제한된 질의. Resolver 로그·수신 결과 대조, 등록일 enrichment는 별도"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": true
+    },
+    {
+      "scenario_id": "K10",
+      "readiness": "전용 환경·로그 보완",
+      "prerequisites": [
+        "SSRF/S3/Lambda 자원·정책 체인을 별도 구성, Invoke data event와 함수 결과 확인"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [
+        "ea-lambda-invoke"
+      ],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": true
+    },
+    {
+      "scenario_id": "K11",
+      "readiness": "전용 테스트 주체",
+      "prerequisites": [
+        "실제 SOC 관리자 권한 대신 제한된 테스트 주체. 정상 변경과 비인가 변경을 같은 API로 대조, 규칙/조사 근거 평가"
+      ],
+      "aws_execution_status": "not-executed",
+      "automated_attack_runner": false,
+      "candidate_rule_ids": [],
+      "rule_semantics": "review candidate; no causal determination; empty list means no dedicated rule",
+      "limits": {
+        "max_duration_minutes": 30,
+        "synthetic_data_only": true,
+        "max_resources_created": 1
+      },
+      "requires_disposable_fixture": true
+    }
+  ]
+}

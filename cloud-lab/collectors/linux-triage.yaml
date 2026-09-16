@@ -1,0 +1,30 @@
+name: Custom.EA.LinuxTriage
+description: Bounded Linux process, connection, and selected raw log observations. Not a RAM image.
+type: CLIENT
+sources:
+  - name: System
+    query: |
+      SELECT * FROM info()
+  - name: Processes
+    query: |
+      SELECT * FROM pslist()
+  - name: Connections
+    query: |
+      SELECT * FROM netstat()
+  - name: Logs
+    query: |
+      SELECT OSPath, Size, Mtime, Atime, Ctime,
+        if(condition=Size <= 16777216,
+           then=upload(file=OSPath),
+           else=dict(error="File exceeds 16 MiB profile limit")) AS Upload
+      FROM glob(globs=["/var/log/nginx/*.json", "/var/log/nginx/*.log",
+        "/var/log/apache2/*access.log", "/var/log/apache2/*error.log",
+        "/var/log/modsecurity/*.json", "/var/log/wp-audit/*.json",
+        "/var/log/suricata/eve.json", "/var/log/audit/audit.log",
+        "/var/log/auth.log", "/var/log/syslog", "/etc/crontab",
+        "/etc/cron.d/*", "/var/spool/cron/crontabs/*",
+        "/etc/systemd/system/*.service", "/etc/systemd/system/*.timer",
+        "/etc/systemd/system/*.d/*.conf", "/root/.ssh/authorized_keys",
+        "/home/*/.ssh/authorized_keys", "/home/*/.config/systemd/user/*.service",
+        "/home/*/.config/systemd/user/*.timer"])
+      WHERE NOT IsDir

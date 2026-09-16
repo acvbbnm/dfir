@@ -1,0 +1,92 @@
+{
+  "timestamp_utc": "2026-09-15T11:56:17.195480+00:00",
+  "passed": true,
+  "scope": "Disposable local Docker services only. No AWS deployment, IAM/KMS cross-account or real kernel EDR/IPS acceptance.",
+  "versions": {
+    "ubuntu": "24.04",
+    "mysql": "8.4.11",
+    "elastic": "8.19.20",
+    "wordpress": "7.1",
+    "velociraptor": "0.77.2"
+  },
+  "checks": [
+    {
+      "name": "rehearse_services",
+      "command": [
+        "docker",
+        "exec",
+        "ea-ready-app",
+        "python3",
+        "/src/local/rehearse_services.py"
+      ],
+      "exit_code": 0,
+      "stdout": "MySQL version: 8.4.11\nPASS non-TLS database connection rejected\nPASS untrusted CA rejected\nWordPress installed; 20 synthetic users and 50 posts present.\nWordPress installed; 20 synthetic users and 50 posts present.\nNo syntax errors detected in /var/www/dvwa/dvwa/includes/dvwaPage.inc.php\nNo syntax errors detected in /var/www/dvwa/config/config.inc.php\nPASS DVWA mysqli and PDO verified TLS connection\nPASS dedicated database isolation; idempotent WordPress setup; DVWA TLS\n",
+      "stderr": "",
+      "source_sha256": "63eca143c05f3d2acbca3e453ca2ed26d83a9c8b5f500658c78813c93ff7996e"
+    },
+    {
+      "name": "rehearse_http",
+      "command": [
+        "docker",
+        "exec",
+        "ea-ready-app",
+        "python3",
+        "/src/local/rehearse_http.py"
+      ],
+      "exit_code": 0,
+      "stdout": "PASS real Apache/PHP-FPM WordPress and isolated DVWA HTTP responses, database TLS and audit request ID\n",
+      "stderr": "",
+      "source_sha256": "c94f1aad4e45085ac5c9cf75f040cfcbacdb63f2492743e29b3d324fdc3e3346"
+    },
+    {
+      "name": "rehearse_collector",
+      "command": [
+        "docker",
+        "exec",
+        "ea-ready-app",
+        "python3",
+        "/src/local/rehearse_collector.py"
+      ],
+      "exit_code": 0,
+      "stdout": "PASS actual wrapper collection, URL-encoded ZIP members, checksum and same-byte retry\n{'sha256': '159766add27d86a272d142c0a71f32c856a3608586e80579d2d8093747798ebc', 'size_bytes': 8069, 'profile': 'linux-triage-v1', 'status': 'SUCCESS', 'warnings': []}\n",
+      "stderr": "",
+      "source_sha256": "ec1a49a75e27045d585f845cdab7dee56cd0a15503b16d65011bdd22cb20070f"
+    },
+    {
+      "name": "rehearse_siem",
+      "command": [
+        "docker",
+        "exec",
+        "ea-ready-app",
+        "python3",
+        "/src/local/rehearse_siem.py"
+      ],
+      "exit_code": 0,
+      "stdout": "PASS /_ingest/pipeline/ea-raw-v1\nPASS original retention, selected fields and date parsing through real Elasticsearch ingest pipeline\nPASS actual Defend Linux detection mode and telemetry configuration\nPASS nested ModSecurity request correlation through actual Elasticsearch pipeline\n",
+      "stderr": "",
+      "source_sha256": "ae5b99e5bebf5b9e2979fd0c07af0bf128927dcbd260fd1c52e4a11d9c50d239"
+    },
+    {
+      "name": "actual_waf_and_velociraptor",
+      "exit_code": 0,
+      "record_type": "retained output of completed ea-ready-waf-v2; not a new run",
+      "stdout": "PASS actual ModSecurity/CRS: DetectionOnly=200, On=403, backend not reached, normal=200, rate=429\nPASS actual Suricata configuration load (inline verdict not tested here)\nPASS actual Velociraptor collection ZIP with process and raw web logs\nlibmodsecurity3t64:amd64\t3.0.12-1.1build2\nlibnginx-mod-http-modsecurity\t1.0.3-1build3\nmodsecurity-crs\t3.3.5-2\nnginx\t1.24.0-2ubuntu7.17\nphp8.3-cli\t8.3.6-0ubuntu0.24.04.11\nsuricata\t1:7.0.3-1build3",
+      "triage_zip_sha256": "cb05c703d22184cb27faab4cf75ce0e89cb3308675c8bc248703a063187268cc"
+    },
+    {
+      "name": "real_triage_to_atlas",
+      "exit_code": 0,
+      "result": {
+        "case_id": "CASE-LOCAL-WAF",
+        "sources": 17,
+        "records": 125,
+        "integrity": "PASS",
+        "shared_requests": 2,
+        "timeline_observations": 18,
+        "zip_sha256": "cb05c703d22184cb27faab4cf75ce0e89cb3308675c8bc248703a063187268cc",
+        "scope": "local Docker evidence only; no AWS object versions",
+        "repeat_records": 0
+      }
+    }
+  ]
+}

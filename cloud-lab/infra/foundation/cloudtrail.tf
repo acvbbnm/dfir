@@ -116,9 +116,55 @@ resource "aws_cloudtrail" "workload" {
   enable_logging                = true
   enable_log_file_validation    = true
   kms_key_id                    = aws_kms_key.evidence_s3.arn
-  event_selector {
-    read_write_type           = "All"
-    include_management_events = true
+  advanced_event_selector {
+    name = "Management"
+    field_selector {
+      field  = "eventCategory"
+      equals = ["Management"]
+    }
+  }
+  advanced_event_selector {
+    name = "SyntheticS3Objects"
+    field_selector {
+      field  = "eventCategory"
+      equals = ["Data"]
+    }
+    field_selector {
+      field  = "resources.type"
+      equals = ["AWS::S3::Object"]
+    }
+    field_selector {
+      field       = "resources.ARN"
+      starts_with = ["${aws_s3_bucket.scenario_data.arn}/synthetic/"]
+    }
+  }
+  dynamic "advanced_event_selector" {
+    for_each = length(var.scenario_lambda_arns) > 0 ? [1] : []
+    content {
+      name = "ScenarioLambdaInvoke"
+      field_selector {
+        field  = "eventCategory"
+        equals = ["Data"]
+      }
+      field_selector {
+        field  = "resources.type"
+        equals = ["AWS::Lambda::Function"]
+      }
+      field_selector {
+        field  = "resources.ARN"
+        equals = var.scenario_lambda_arns
+      }
+      field_selector {
+        field  = "eventName"
+        equals = ["Invoke"]
+      }
+    }
+  }
+  lifecycle {
+    precondition {
+      condition     = alltrue([for arn in var.scenario_lambda_arns : split(":", arn)[4] == var.workload_account_id])
+      error_message = "Lambda data-event targets must belong to the Workload account."
+    }
   }
   depends_on = [aws_s3_bucket_policy.cloudtrail]
 }

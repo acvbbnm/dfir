@@ -49,7 +49,7 @@ resource "aws_iam_role_policy" "app_secrets" {
         Action = [
           "secretsmanager:GetSecretValue"
         ]
-        Resource = aws_secretsmanager_secret.wordpress.arn
+        Resource = [aws_secretsmanager_secret.wordpress.arn, aws_secretsmanager_secret.dvwa.arn]
       }
     ]
   })
@@ -84,6 +84,7 @@ resource "aws_iam_role_policy" "soc_s3_read" {
         Effect = "Allow"
         Action = [
           "s3:GetObject",
+          "s3:GetObjectVersion",
           "s3:ListBucket"
         ]
         Resource = [
@@ -140,4 +141,12 @@ resource "aws_iam_role_policy" "soc_eventbridge" {
 resource "aws_iam_instance_profile" "soc" {
   name = "${var.project}-soc-profile"
   role = aws_iam_role.soc.name
+}
+
+resource "aws_iam_role_policy" "soc_central_log_assume" {
+  name = "central-log-assume"
+  role = aws_iam_role.soc.id
+  policy = jsonencode({ Version = "2012-10-17", Statement = [{
+    Effect = "Allow", Action = "sts:AssumeRole", Resource = "arn:aws:iam::${var.security_account_id}:role/${var.project}-central-log-reader"
+  }] })
 }

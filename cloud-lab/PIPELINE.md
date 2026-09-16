@@ -1,5 +1,10 @@
 # 전체 파이프라인 구성 검토와 인프라 보완
 
+> 2026-09-16 실행 기준: [시나리오 v1.1](scenarios/SCENARIO_LIBRARY.md)·[수정/지원 범위](results/SCENARIO_FIXES.md). 아래의 SQS·landing 복제·snapshot copy·host 없는 자동 사건·고급 상관·대응 실행기는 후속 목표이며 현재 구현 완료를 뜻하지 않는다. S0~S6는 준비 검사, N/W/H/C/I/D/E/X/K는 본 실험 ID다.
+
+
+> **2026-09-15 구현/검증 대조:** 이 문서의 장기 목표와 과거 후보 구성을 현재 완료 상태로 해석하지 않는다. 현재 기준선은 [DEPLOYMENT.md](DEPLOYMENT.md), 수행된 검사는 [LOCAL_VALIDATION.md](results/LOCAL_VALIDATION.md)다. ModSecurity 기본·내부 ALB·선택 test-a 실행기·초기 Atlas 오프라인 import까지 준비했으며 AWS 수락/전체 분석·대응은 미완료다.
+
 작성일: 2026-09-09 · 상태: 설계 검토, 구현 전
 
 기존 4개 설계서(DESIGN.md, BUILD_AND_ATTACK.md, CLOUD_FORENSICS.md, OPEN_SOURCE.md)의 인프라 구성 완성도를 점검하고, 파이프라인 각 구간의 구체적 입출력·누락 항목·구현 요건을 정리한다.
@@ -105,22 +110,23 @@
 ### P2. SIEM 정규화와 인덱싱
 
 ```
-[Agent/SQS 수집기] → [Elastic ingest pipeline] → [ES 인덱스]
+[Agent/polling 수집기] → [Elastic ingest pipeline] → [ES 인덱스]
 ```
 
-| 데이터 | Elastic 통합/인덱스 | 핵심 필드 | 보존 기간 |
-|--------|-------------------|----------|----------|
-| Linux system | logs-system.* | host.name, process.*, user.* | 7일 / 디스크 한도 |
-| Suricata | logs-suricata.* | suricata.eve.alert.signature_id, .action | 7일 |
-| Nginx/Apache | logs-nginx.*, logs-apache.* | url.path, http.response.status_code | 7일 |
-| WordPress 감사 | logs-generic-* (custom) | ea.wp.action, ea.wp.user, ea.wp.object | 7일 |
-| Elastic Defend | logs-endpoint.* | process.entity_id, file.hash.* | 7일 |
-| WAF | logs-aws.waf-* | aws.waf.action, .rule.id, .http_request | 7일 |
-| ALB | logs-aws.elb-* | aws.elb.target_status_code, .trace_id | 7일 |
-| CloudTrail | logs-aws.cloudtrail-* | aws.cloudtrail.user_identity.*, .event_name | 7일 |
-| VPC Flow | logs-aws.vpcflow-* | source.ip, destination.ip, event.action | 7일 |
-| RDS MySQL | logs-aws.cloudwatch-* (custom) | mysql.thread_id, .query (실험 구간) | 7일 |
-| DNS Resolver | logs-aws.route53_resolver-* | dns.question.name, source.ip | 7일 |
+| 데이터 | 현재 인덱스 | 조회 필드/한계 | 보존 목표 |
+|---|---|---|---|
+| auditd/auth | logs-ea.auditd-*, logs-ea.auth-* | event.original; 전체 audit 구조 파싱은 후속 | 7일 |
+| Suricata | logs-ea.suricata-* | rule.id/name, event.kind/action, ea.raw | 7일 |
+| Nginx/Apache | logs-ea.nginx-*, logs-ea.apache-* | 원문, JSON인 경우 ea.request_id/http.response.status_code; Apache 전체 파싱 후속 | 7일 |
+| WordPress | logs-ea.wordpress-* | event.action, user.name, ea.request_id, ea.raw | 7일 |
+| Elastic Defend | logs-endpoint.* | Agent 실제 등록·커널 수락 검증 후 사용 | 패키지 정책 대조 |
+| ModSecurity 기본 WAF | logs-ea.modsecurity-* | ea.waf.message_count, ea.request_id, ea.raw | 7일 |
+| ALB/Flow/RDS/DNS | logs-ea.aws-* | ea.source_kind, ea.raw, event.original, ea.locator; 전체 ECS 변환 후속 | 7일 |
+| CloudTrail | logs-ea.aws-* | event.provider/action/outcome/ingested, user.id, cloud.account.id/region, ea.audit.*, ea.locator | 7일 |
+| AWS WAF 선택 | 기본 비활성 | 활성화 시 별도 수집·비용·정책 검증 필요 | 별도 설정 |
+
+기존 AWS/System/Suricata 통합 패키지의 `logs-aws.*` 등 쿼리는 현재 필드와 호환되지 않는다. 현재 collector는 polling/filestream을 사용한다. 이후 패키지 수집/SQS로 전환할 때 원문과 변환 결과를 병렬 검증한다.
+
 
 **구현 요건:**
 - [ ] Fleet Server: SOC VM에 자체 호스팅, TLS 9200/8220

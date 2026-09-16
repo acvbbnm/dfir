@@ -1,6 +1,6 @@
 {
   "playbook": "iam_response",
-  "version": "1.0",
+  "version": "1.1",
   "description": "IAM/STS 세션 취소 + inline deny 정책 적용",
   "prerequisite": "의심 role/session 확인",
   "steps": [
@@ -13,9 +13,18 @@
       ]
     },
     {
+      "name": "control_reissuance",
+      "actions": [
+        "새 역할 세션을 얻는 침해 경로/신뢰 정책/instance profile을 확인",
+        "정상 수집 역할을 보존하면서 침해 주체의 재발급 경로를 제한",
+        "기존 토큰 만료 시각 또는 보수적인 상한·계산 근거 기록"
+      ],
+      "on_unknown": "회수 완료/복구 가능 판정 금지"
+    },
+    {
       "name": "revoke_sessions",
       "action": "IAM PutRolePolicy (AWSRevokeOlderSessions)",
-      "description": "현재 시점 이전 발급 토큰 무효화",
+      "description": "cutoff 이전 토큰의 권한 사용을 조건부 Deny. 토큰 자체를 파기하는 API가 아니며 정책 제거로 거부가 해제될 수 있음",
       "params": {
         "policy_name": "ea-revoke-sessions",
         "policy_document": {
@@ -39,9 +48,10 @@
     {
       "name": "verify_revocation",
       "verify": [
-        "의심 role의 기존 임시 자격증명으로 API 호출 → AccessDenied",
-        "새로 발급된 자격증명은 거부 정책에 막히지 않음 (시간 조건)",
-        "수집용 역할은 영향 없음 확인"
+        "전파 대기 후 이전 토큰으로 기존에 허용됐던 지정 비파괴 자원 API 호출 → AccessDenied",
+        "GetCallerIdentity는 거부 판정용 API로 사용하지 않음",
+        "침해 경로에서 새 토큰 취득/사용 거부; 정상 수집 역할은 유지",
+        "검증 시각·자원·응답·토큰 만료 기록, 비밀 토큰값은 로그/Git에 저장 금지"
       ]
     },
     {
@@ -49,13 +59,28 @@
       "condition": "추가 제한이 필요한 경우",
       "action": "IAM PutRolePolicy (ea-emergency-deny)",
       "params": {
-        "deny_actions": ["s3:*", "secretsmanager:*", "ec2:RunInstances"],
+        "deny_actions": [
+          "s3:*",
+          "secretsmanager:*",
+          "ec2:RunInstances"
+        ],
         "note": "범위를 최소화하여 수집 경로에 영향을 주지 않음"
       }
     }
   ],
   "record": {
     "save_to": "cases/{case_id}/response/iam_response.json",
-    "fields": ["before_state", "revoke_timestamp", "verify_results", "executed_at"]
-  }
+    "fields": [
+      "before_state",
+      "revoke_timestamp",
+      "verify_results",
+      "executed_at",
+      "latest_possible_token_expiry",
+      "expiry_basis",
+      "propagation_margin_seconds",
+      "reissuance_control",
+      "old_session_resource_check"
+    ]
+  },
+  "implementation": "manual-runbook; no response executor deployed"
 }

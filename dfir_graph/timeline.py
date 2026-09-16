@@ -19,7 +19,8 @@ LANES = [
     {"id": "prefetch", "name": "Prefetch 실행 흔적", "color": "#efba65"},
     {"id": "registry", "name": "레지스트리 기록", "color": "#f28b82"},
     {"id": "links", "name": "바로가기 · Jump List", "color": "#80cbc4"},
-    {"id": "other", "name": "기타 Windows 이벤트", "color": "#93a4b9"},
+    {"id": "cloud", "name": "클라우드 · Linux · 웹", "color": "#ffa875"},
+    {"id": "other", "name": "기타 이벤트", "color": "#93a4b9"},
 ]
 KINDS = {"process_creation": "process", "logon_success": "logon", "logon_failure": "logon",
          "powershell_scriptblock": "powershell", "prefetch_execution_time": "prefetch", "evtx_other": "other",
@@ -27,6 +28,9 @@ KINDS = {"process_creation": "process", "logon_success": "logon", "logon_failure
          "bam_execution": "registry", "userassist_execution": "registry",
          "lnk_metadata": "links", "jumplist_entry": "links"}
 
+
+KINDS.update({k: "cloud" for k in ("cloud_record", "cloudtrail_event", "linux_process_snapshot",
+             "waf_event", "web_request", "application_audit")})
 
 def millis(value):
     return int(datetime.fromisoformat(value).timestamp() * 1000)
@@ -41,7 +45,7 @@ class TimelineIndex:
         try:
             self.cases = [r[0] for r in store.db.execute("SELECT id FROM cases ORDER BY id")]
             self.source_status = store.stats()["sources"]
-            process_names = {json.loads(r[0])["creation_record"]: r[1]
+            process_names = {json.loads(r[0]).get("creation_record", ""): r[1]
                              for r in store.db.execute("SELECT props_json,display FROM nodes WHERE label='ProcessInstance'")}
             for row in store.db.execute("""SELECT n.id,n.case_id,n.props_json,
                     json_extract(r.raw_json,'$.Payload') AS payload
@@ -49,7 +53,7 @@ class TimelineIndex:
                     WHERE n.label='Observation'"""):
                 p = json.loads(row["props_json"])
                 kind = p["kind"]
-                title = process_names.get(p["record_id"], "프로세스 생성")
+                title = p.get("title") or process_names.get(p["record_id"], kind)
                 if kind == "prefetch_execution_time":
                     title = p.get("executable_name") or "Prefetch 실행 흔적"
                 elif kind == "amcache_file":
@@ -95,7 +99,7 @@ class TimelineIndex:
             self.undated += 1
             return
         self.items.append({"id": item_id, "case_id": case, "record_id": record, "node_id": node,
-                           "kind": kind, "lane": KINDS[kind], "host": host or "미확정",
+                           "kind": kind, "lane": KINDS.get(kind, "other"), "host": host or "미확정",
                            "scope": scope or "unknown", "at": millis(utc), "time_raw": raw,
                            "title": title, "slot": slot, "time_kind": time_kind})
 

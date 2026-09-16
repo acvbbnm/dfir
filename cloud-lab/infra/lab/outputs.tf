@@ -47,7 +47,7 @@ output "alb_arn" {
 }
 
 output "waf_web_acl_arn" {
-  value = aws_wafv2_web_acl.main.arn
+  value = var.enable_aws_waf ? aws_wafv2_web_acl.main[0].arn : null
 }
 
 output "sg_isolation_id" {
@@ -61,3 +61,8 @@ output "db_secret_arn" {
 
 output "wordpress_secret_arn" { value = aws_secretsmanager_secret.wordpress.arn }
 output "soc_data_volume_id" { value = aws_ebs_volume.soc_data.id }
+
+output "dvwa_secret_arn" { value = aws_secretsmanager_secret.dvwa.arn }
+
+output "rds_identifier" { value = aws_db_instance.main.id }
+output "resolver_log_group" { value = aws_cloudwatch_log_group.resolver.name }

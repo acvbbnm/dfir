@@ -58,3 +58,13 @@ variable "common_tags" {
     ManagedBy   = "opentofu"
   }
 }
+
+variable "scenario_lambda_arns" {
+  description = "Exact Workload experiment Lambda ARNs for paid Invoke data events; empty until K10 is provisioned."
+  type        = list(string)
+  default     = []
+  validation {
+    condition     = length(var.scenario_lambda_arns) <= 5 && alltrue([for arn in var.scenario_lambda_arns : can(regex("^arn:aws:lambda:[a-z0-9-]+:[0-9]{12}:function:ea-scenario-[A-Za-z0-9_-]+$", arn))])
+    error_message = "Select at most five exact ea-scenario-* Lambda ARNs; no wildcards."
+  }
+}

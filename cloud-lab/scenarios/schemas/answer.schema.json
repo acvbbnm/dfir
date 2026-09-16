@@ -3,11 +3,61 @@
   "title": "EA Scenario Answer Record",
   "description": "공격/방어 시나리오 정답 기록",
   "type": "object",
-  "required": ["scenario_id", "run_id", "executed_at", "targets", "expected_evidence"],
+  "required": [
+    "scenario_id",
+    "run_id",
+    "executed_at",
+    "targets",
+    "expected_evidence"
+  ],
   "properties": {
     "scenario_id": {
       "type": "string",
-      "pattern": "^S[0-6]$"
+      "enum": [
+        "S0",
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "N0",
+        "W1",
+        "W2",
+        "W3",
+        "W4",
+        "W5",
+        "H1",
+        "H2",
+        "H3",
+        "C1",
+        "C2",
+        "C3",
+        "I1",
+        "I2",
+        "I3",
+        "I4",
+        "D1",
+        "D2",
+        "D3",
+        "D4",
+        "E1",
+        "E2",
+        "E3",
+        "X1",
+        "X2",
+        "K1",
+        "K2",
+        "K3",
+        "K4",
+        "K5",
+        "K6",
+        "K7",
+        "K8",
+        "K9",
+        "K10",
+        "K11"
+      ]
     },
     "run_id": {
       "type": "string",
@@ -25,26 +75,63 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["resource_type", "resource_id"],
+        "required": [
+          "resource_type",
+          "resource_id"
+        ],
         "properties": {
-          "resource_type": { "type": "string" },
-          "resource_id": { "type": "string" },
-          "allowed_actions": { "type": "array", "items": { "type": "string" } }
+          "resource_type": {
+            "type": "string"
+          },
+          "resource_id": {
+            "type": "string"
+          },
+          "allowed_actions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         }
-      }
+      },
+      "minItems": 1
     },
     "actions": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["step", "command", "expected_result"],
+        "required": [
+          "step",
+          "command",
+          "expected_result"
+        ],
         "properties": {
-          "step": { "type": "integer" },
-          "command": { "type": "string", "description": "실행한 명령/요청" },
-          "expected_result": { "type": "string", "enum": ["success", "blocked", "partial"] },
-          "actual_result": { "type": "string" },
-          "response_snippet": { "type": "string" },
-          "timestamp": { "type": "string", "format": "date-time" }
+          "step": {
+            "type": "integer"
+          },
+          "command": {
+            "type": "string",
+            "description": "실행한 명령/요청"
+          },
+          "expected_result": {
+            "type": "string",
+            "enum": [
+              "success",
+              "blocked",
+              "partial",
+              "observation"
+            ]
+          },
+          "actual_result": {
+            "type": "string"
+          },
+          "response_snippet": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
         }
       }
     },
@@ -52,26 +139,110 @@
       "type": "object",
       "description": "각 소스에서 남아야 하는 로그/이벤트",
       "properties": {
-        "waf": { "type": "array", "items": { "type": "string" } },
-        "suricata": { "type": "array", "items": { "type": "string" } },
-        "cloudtrail": { "type": "array", "items": { "type": "string" } },
-        "elastic_defend": { "type": "array", "items": { "type": "string" } },
-        "nginx": { "type": "array", "items": { "type": "string" } },
-        "apache": { "type": "array", "items": { "type": "string" } },
-        "wordpress_audit": { "type": "array", "items": { "type": "string" } },
-        "auditd": { "type": "array", "items": { "type": "string" } },
-        "rds": { "type": "array", "items": { "type": "string" } },
-        "flow_logs": { "type": "array", "items": { "type": "string" } }
+        "waf": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "suricata": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "cloudtrail": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "elastic_defend": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "nginx": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "apache": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "wordpress_audit": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "auditd": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "flow_logs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
     "detection_rules": {
       "type": "array",
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "description": "이 시나리오에서 발화해야 하는 탐지 규칙 ID"
     },
     "policy_versions": {
       "type": "object",
       "description": "실행 시점 WAF/Suricata/auditd 정책 버전·해시"
+    },
+    "schema_version": {
+      "const": "1.1"
+    },
+    "record_type": {
+      "const": "answer"
+    },
+    "receipt_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "assessment_status": {
+      "enum": [
+        "unreviewed",
+        "reviewed"
+      ]
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {
+          "enum": [
+            "not_evaluated",
+            "pass",
+            "fail",
+            "not_expected",
+            "unsupported",
+            "pending_delivery"
+          ]
+        }
+      }
     }
   }
 }

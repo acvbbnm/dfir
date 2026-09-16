@@ -1,51 +1,27 @@
 {
   "scenario_id": "S1",
-  "name": "web_recon_scan",
-  "description": "웹 정찰 + 포트스캔 — 초기 접근 시도 탐지",
+  "name": "bounded_web_probes",
+  "description": "고정 3개 URL 조회와 404/리다이렉트 관찰",
   "category": "reconnaissance",
-  "severity": "medium",
-  "mitre_tactics": ["TA0043-Reconnaissance", "TA0001-Initial Access"],
-  "mitre_techniques": ["T1595.002-Active Scanning: Vulnerability Scanning", "T1190-Exploit Public-Facing Application"],
-  "prerequisites": ["S0 베이스라인 완료", "Suricata 룰 로드 확인"],
-  "actor": "외부 공격자 (인터넷 → ALB)",
+  "severity": "low",
+  "implementation": "ea-runner",
+  "aws_execution_status": "not-executed",
+  "prerequisites": [
+    "S0 완료"
+  ],
   "steps": [
-    {
-      "step": 1,
-      "action": "Nikto 웹 스캔",
-      "command": "nikto -h https://ALB_DNS -output nikto_result.txt",
-      "expected": "Suricata SID 9000005 (nikto UA 탐지)"
-    },
-    {
-      "step": 2,
-      "action": "WPScan 열거",
-      "command": "wpscan --url https://ALB_DNS --enumerate u,p,t --output wpscan_result.json --format json",
-      "expected": "사용자/플러그인/테마 열거 결과"
-    },
-    {
-      "step": 3,
-      "action": "디렉토리 브루트포스",
-      "command": "gobuster dir -u https://ALB_DNS -w /usr/share/wordlists/dirb/common.txt -o gobuster.txt",
-      "expected": "wp-admin, wp-content 등 발견"
-    },
-    {
-      "step": 4,
-      "action": "SQLMap 프로브 (탐지만)",
-      "command": "sqlmap -u 'https://ALB_DNS/?s=test' --batch --level=1 --risk=1 --dbs 2>&1 | head -50",
-      "expected": "Suricata SID 9000004 (sqlmap UA), WAF SQLi 룰 Count"
-    }
+    "S1 실행기로 고정 URL 3개 조회",
+    "웹 스캐너 전체 실행이나 취약점 존재를 주장하지 않음"
   ],
   "expected_evidence": {
-    "waf": ["AWSManagedRulesCommonRuleSet Count", "AWSManagedRulesSQLiRuleSet Count"],
-    "suricata": ["SID 9000004 (sqlmap UA)", "SID 9000005 (nikto UA)"],
-    "nginx": ["다수 404/403 응답, 비정상 User-Agent"],
-    "apache": ["다수 404 응답"],
-    "elastic_defend": ["네트워크 이벤트 급증"],
-    "flow_logs": ["단일 소스 IP에서 대량 연결"],
-    "cloudtrail": [],
-    "wordpress_audit": [],
-    "auditd": [],
-    "rds": []
+    "nginx": [
+      "3개 요청과 상태 코드"
+    ],
+    "apache": [
+      "WAF 통과한 요청"
+    ]
   },
-  "detection_rules": ["suricata-9000004", "suricata-9000005", "waf-sqli-count", "waf-crs-count"],
-  "success_criteria": "Suricata + WAF에서 스캔 활동 탐지, Elastic alert 생성"
+  "actor": "authorized operator / temporary test-a client",
+  "success_criteria": "예상/실제 결과, 원본 위치, 누락, 정책 모드를 각각 기록하고 SIEM 조회와 대조",
+  "command": "python3 /opt/ea/scenario_runner.py --target \"$EA_TARGET\" --ca /opt/ea/alb.pem --scenario S1 --output S1-RUN.json --execute"
 }

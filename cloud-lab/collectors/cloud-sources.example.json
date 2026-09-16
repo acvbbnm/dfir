@@ -1,0 +1,50 @@
+{
+  "sources": [
+    {
+      "transport": "s3",
+      "kind": "cloudtrail",
+      "bucket": "ea-cloudtrail-222222222222",
+      "prefix": "AWSLogs/111111111111/CloudTrail/ap-northeast-2/{date}/",
+      "region": "ap-northeast-2",
+      "account_id": "111111111111",
+      "role_arn": "arn:aws:iam::222222222222:role/ea-central-log-reader"
+    },
+    {
+      "transport": "s3",
+      "kind": "alb",
+      "bucket": "ea-alb-logs-111111111111",
+      "prefix": "alb/AWSLogs/111111111111/elasticloadbalancing/ap-northeast-2/{date}/",
+      "region": "ap-northeast-2",
+      "account_id": "111111111111"
+    },
+    {
+      "transport": "s3",
+      "kind": "vpc-flow",
+      "bucket": "ea-flow-logs-111111111111",
+      "prefix": "AWSLogs/111111111111/vpcflowlogs/ap-northeast-2/{date}/",
+      "region": "ap-northeast-2",
+      "account_id": "111111111111"
+    },
+    {
+      "transport": "cloudwatch",
+      "kind": "rds-slowquery",
+      "log_group": "/aws/rds/instance/ea-mysql/slowquery",
+      "region": "ap-northeast-2",
+      "account_id": "111111111111"
+    },
+    {
+      "transport": "cloudwatch",
+      "kind": "rds-error",
+      "log_group": "/aws/rds/instance/ea-mysql/error",
+      "region": "ap-northeast-2",
+      "account_id": "111111111111"
+    },
+    {
+      "transport": "cloudwatch",
+      "kind": "resolver-dns",
+      "log_group": "/ea/resolver",
+      "region": "ap-northeast-2",
+      "account_id": "111111111111"
+    }
+  ]
+}

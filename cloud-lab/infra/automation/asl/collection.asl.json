@@ -1,5 +1,5 @@
 {
-  "Comment": "EA 증거 수집 워크플로 v1.0",
+  "Comment": "EA \uc99d\uac70 \uc218\uc9d1 \uc6cc\ud06c\ud50c\ub85c v1.0",
   "StartAt": "ValidateInput",
   "TimeoutSeconds": 1800,
   "States": {
@@ -9,7 +9,8 @@
       "Parameters": {
         "case_id.$": "$.case_id",
         "trigger.$": "$.trigger",
-        "target.$": "$.target"
+        "target.$": "$.target",
+        "execution_id.$": "$$.Execution.Id"
       },
       "ResultPath": "$.validation",
       "Next": "IsValid",

@@ -1,0 +1,4 @@
+cloud-lab/** text eol=lf
+dfir_graph/*.py text eol=lf
+tests/*.py text eol=lf
+*.pdf binary

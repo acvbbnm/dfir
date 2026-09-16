@@ -1,51 +1,28 @@
 {
   "scenario_id": "S2",
-  "name": "brute_force_login",
-  "description": "WordPress 로그인 브루트포스 → 계정 탈취",
+  "name": "failed_login_observation",
+  "description": "존재하지 않는 사용자로 12회 실패 로그인 관찰",
   "category": "credential_access",
-  "severity": "high",
-  "mitre_tactics": ["TA0006-Credential Access", "TA0001-Initial Access"],
-  "mitre_techniques": ["T1110.001-Brute Force: Password Guessing", "T1078-Valid Accounts"],
-  "prerequisites": ["S1 정찰 완료 (사용자 목록 확보)", "seed.sql 유저 생성 완료"],
-  "actor": "외부 공격자",
+  "severity": "medium",
+  "implementation": "ea-runner",
+  "aws_execution_status": "not-executed",
+  "prerequisites": [
+    "WordPress 감사 로그 수집 확인",
+    "기준선 WAF 모드와 Nginx rate 설정 기록"
+  ],
   "steps": [
-    {
-      "step": 1,
-      "action": "wp-login 브루트포스 (속도 제한 트리거)",
-      "command": "hydra -L users.txt -P /usr/share/wordlists/rockyou.txt ALB_DNS https-post-form '/wp-login.php:log=^USER^&pwd=^PASS^:F=incorrect' -t 4 -w 1",
-      "expected": "WAF rate limit 룰 Block, Suricata SID 9000006"
-    },
-    {
-      "step": 2,
-      "action": "저속 브루트포스 (rate limit 우회 시도)",
-      "command": "python3 slow_brute.py --url https://ALB_DNS/wp-login.php --users users.txt --passwords top100.txt --delay 5",
-      "expected": "일부 성공 가능, WordPress audit 로그 다수 login_failed"
-    },
-    {
-      "step": 3,
-      "action": "탈취 계정으로 로그인",
-      "command": "curl -c stolen.txt -d 'log=author03&pwd=GUESSED_PASS&wp-submit=Log+In' https://ALB_DNS/wp-login.php",
-      "expected": "login_success 이벤트 (비정상 IP에서)"
-    },
-    {
-      "step": 4,
-      "action": "권한 확인 + 정보 수집",
-      "command": "curl -b stolen.txt https://ALB_DNS/wp-admin/profile.php",
-      "expected": "프로필 페이지 접근 성공"
-    }
+    "S2 실행기로 고정된 잘못된 자격정보 요청 12회",
+    "HTTP 200도 인증 실패일 수 있음. wp_login_failed 감사와 429를 별도로 계산"
   ],
   "expected_evidence": {
-    "waf": ["RateLimit 룰 Block 액션", "다수 POST /wp-login.php"],
-    "suricata": ["SID 9000006 (wp-login brute force)"],
-    "nginx": ["동일 IP 대량 POST 요청, 401/200 혼재"],
-    "apache": ["다수 POST 요청"],
-    "wordpress_audit": ["login_failed (다수)", "login_success (비정상 IP)"],
-    "elastic_defend": ["프로세스/네트워크 이벤트"],
-    "auditd": [],
-    "flow_logs": ["단일 소스→ALB 반복 연결"],
-    "cloudtrail": [],
-    "rds": ["다수 SELECT on wp_users"]
+    "wordpress_audit": [
+      "백엔드에 도달한 실패 로그인"
+    ],
+    "nginx": [
+      "응답 200/403/429와 request_id"
+    ]
   },
-  "detection_rules": ["suricata-9000006", "waf-rate-limit", "elastic-brute-force-login", "wp-audit-excessive-failures"],
-  "success_criteria": "브루트포스 탐지 + 자동 케이스 생성 (severity=high)"
+  "actor": "authorized operator / temporary test-a client",
+  "success_criteria": "예상/실제 결과, 원본 위치, 누락, 정책 모드를 각각 기록하고 SIEM 조회와 대조",
+  "command": "python3 /opt/ea/scenario_runner.py --target \"$EA_TARGET\" --ca /opt/ea/alb.pem --scenario S2 --output S2-RUN.json --execute"
 }

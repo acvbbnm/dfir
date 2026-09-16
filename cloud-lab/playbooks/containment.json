@@ -1,8 +1,8 @@
 {
   "playbook": "network_containment",
-  "version": "1.0",
+  "version": "1.1",
   "description": "네트워크 격리 — SG 교체 + ALB 등록 해제",
-  "prerequisite": "collect_only 완료 또는 긴급 판단",
+  "prerequisite": "분석가 승인; 현재 ENI/ALB/SG 보존; operate 모드 SSM 및 S3 canary 성공; 수집 지연/메모리 휘발 판단 기록",
   "steps": [
     {
       "name": "preserve_current_state",
@@ -15,13 +15,21 @@
     {
       "name": "deregister_from_alb",
       "action": "ALB DeregisterTargets",
-      "params": { "target_group_arn": "from_lab_outputs", "target_id": "instance_id" },
-      "verify": "DescribeTargetHealth → draining/unused"
+      "params": {
+        "target_group_arn": "from_lab_outputs",
+        "target_id": "instance_id"
+      },
+      "verify": "DescribeTargetHealth → draining/unused",
+      "condition": "before_alb.json에서 이 인스턴스가 실제 target으로 확인된 경우만 수행; APP는 skip"
     },
     {
       "name": "apply_isolation_sg",
       "action": "EC2 ModifyInstanceAttribute",
-      "params": { "groups": ["sg-isolation (SSM + S3 only)"] },
+      "params": {
+        "groups": [
+          "sg-isolation (SSM + S3 only)"
+        ]
+      },
       "verify": [
         "새 SSH/HTTP 연결 → 거부",
         "SSM Session Manager → 성공",
@@ -32,23 +40,32 @@
       "name": "check_tracked_connections",
       "description": "SG 변경 후에도 기존 TCP 연결이 유지될 수 있음",
       "verify": [
-        "대상→RDS 기존 연결 확인 (netstat/ss)",
-        "유지되면 OS iptables로 추가 차단"
+        "RDS/SOC/외부 목적지의 기존 및 신규 연결 각각 검사",
+        "기존 금지 연결 유지 시 세션 종료/호스트 방화벽 조치를 분석가 승인 후 수행하고 SSM/S3 재검증"
       ],
       "fallback": "PARTIAL_CONTAINMENT 기록"
     },
     {
       "name": "verify_management_path",
       "verify": [
-        "SSM 세션 가능",
-        "Agent→SOC 통신 확인 (수집 계속)",
-        "S3 업로드 가능"
+        "SSM 새 세션/명령 성공",
+        "S3 endpoint에 새 테스트 업로드 및 hash 대조",
+        "SOC9200/8220 새 연결 거부 확인; Agent 실시간 전달 중단은 선택한 격리 정책의 예상 결과",
+        "SSM 기반 triage 수집 및 upload 결과 확인"
       ],
-      "on_failure": "관리 통신 단절 → PARTIAL_CONTAINMENT"
+      "on_failure": "SSM/S3 수집 실패 또는 금지 연결 유지 시 PARTIAL_CONTAINMENT. 예상한 Agent 단절 자체는 실패로 세지 않음"
     }
   ],
   "record": {
     "save_to": "cases/{case_id}/response/containment.json",
-    "fields": ["before_state", "actions_taken", "verify_results", "final_status", "executed_at", "executed_by"]
-  }
+    "fields": [
+      "before_state",
+      "actions_taken",
+      "verify_results",
+      "final_status",
+      "executed_at",
+      "executed_by"
+    ]
+  },
+  "implementation": "manual-runbook; no response executor deployed"
 }

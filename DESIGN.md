@@ -551,10 +551,29 @@ AWS 실습 인프라와 Evidence Atlas 연동 작업은 모두 이 evidence-atla
 - 생성 예정 구성: cloud-lab/infra, bootstrap, application, collectors, playbooks, scenarios, scripts, tests, results. 상세 파일 배치는 cloud-lab/DESIGN.md 섹션 12를 따른다.
 - Atlas 코어 변경: dfir_graph와 tests에서 구현하며, 새 모듈·어댑터·CLI의 세부 계약은 구현 전에 이 섹션에 추가한다.
 - 진행 상황의 출처: 이 저장소 README의 AWS A0~A7 체크리스트.
-- 현재 상태: 설계서만 작성. AWS 리소스와 자동화는 아직 배포하지 않았다.
+- 현재 상태: 5.7의 배포 전 코드를 구현하고 로컬 회귀·Linux 서비스 검증을 완료했다. AWS 리소스와 자동화는 아직 배포하지 않았다. Atlas AWS 분석은 검증된 증거 묶음의 초기 오프라인 가져오기에 한정된다.
 - 원본·시간 의미·범위 분리·인과 확정 금지·로컬 AI 원칙을 동일하게 적용한다.
 
 ---
+
+### 5.7 배포 전 준비 구현 — 2026-09-15
+
+- 설치 파일 증가에 대비해 `infra/foundation/bootstrap_artifacts.tf`, `infra/lab/bootstrap_bundles.tf`, `bootstrap/load_bundle.sh.tpl`로 버전 고정 S3 설정 묶음을 전달한다. EC2 user-data는 16 KiB 미만 로더만 포함하고 S3 VersionId/SHA-256을 검증한다.
+
+- 기본 WAF는 WEB의 ModSecurity v3 + OWASP CRS. AWS WAF는 명시적으로 켜는 비교 옵션이다.
+- cloud-lab/bootstrap: WAF, DB/서비스 초기화, Fleet/수집기 설치. application: ModSecurity·DVWA·감사 로그 설정.
+- cloud-lab/siem: 정책 생성·원본 보존 파서·탐지 규칙. collectors: 고정 Linux triage 프로필과 원본 AWS 로그 수집.
+- cloud-lab/scripts/prepare_deployment.py: 계정 설정 예시·단계별 tfvars/backend와 제한된 신뢰 정책 생성. AWS 호출 없이 실행하고 미확정 값을 배포 입력으로 꾸미지 않는다.
+- cloud-lab/scripts: 준비 상태 검사, 버전 고정, Linux 리허설, 증거 반출/검증, 배포·종료 runbook.
+- cloud-lab/infra/lab/test_runner.tf: test-a의 선택적 SSM 전용 실행 호스트. scripts/scenario_runner.py는 S0~S3의 제한된 사설망 HTTP 점검과 실행 증적을 담당한다.
+- cloud-lab/local: AWS와 격리한 Docker Linux 서비스 검증. 기존 컨테이너·볼륨은 변경하지 않는다.
+- dfir_graph/cloud.py: manifest 기반 cloud-import CLI. 파일 해시 검증 후 원본 행·source locator·time_kind를 보존하며 사건/자원/요청의 공유 참조만 생성한다.
+- tests/test_cloud.py 및 cloud-lab/tests: 변조·부분 실패·재시도·실제 WAF 통과/차단·파서·서비스 계약 검증.
+- 로컬 완료와 AWS 배포 가능 판정을 분리한다. 계정/AMI/견적 입력, AWS 연결·수집·차단은 실측 전 완료 처리하지 않는다.
+
+### 5.8 2026-09-16 시나리오 검토 보완
+
+기존 cloud-lab 구현을 보완한다. 새 파일은 `infra/foundation/scenario_data.tf`(합성 S3 자료), `infra/lab/rds_key.tf`(RDS 전용 키), `scripts/scenario_records.py`(실행 원기록→정답), `scenarios/catalog.json`(36개 준비 조건), `tests/test_scenario_contracts.py`(계약 회귀), `local/rehearse_scenarios.py`(실제 ES/Velociraptor 검사), `results/SCENARIO_REVIEW.md`·`SCENARIO_FIXES.md`(근거·반영)다. 경보는 조사 후보이며 인과를 확정하지 않는다. 미구현 공격·대응 실행기를 준비 완료로 표시하지 않는다.
 
 ## 6. 구현 우선순위와 의존 관계
 

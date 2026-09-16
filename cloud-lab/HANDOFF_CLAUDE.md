@@ -1,21 +1,19 @@
-# 다음 개발자를 위한 인계 — 2026-09-11
+# 다음 개발자를 위한 인계 — 2026-09-16
 
-작업 레포는 `C:/Users/SBA_USER/Desktop/evidence-atlas`다. 옛 `siem-project/dfir-graph`를 수정하지 않는다. 루트 AGENTS.md·DESIGN.md와 cloud-lab 설계서를 따른다.
+작업 경로 `C:/Users/SBA_USER/Desktop/evidence-atlas`, main. `siem-project/dfir-graph`를 수정하지 않는다. AGENTS.md·루트 DESIGN.md를 먼저 읽고 상대 변경은 git diff로 확인한다.
 
-사용자는 AWS 계정/프로필 준비 전이므로 로컬 구현·검증부터 진행하도록 지정했다. AWS 리소스 생성·공격·실제 로그 수집은 하지 않았다. 현재 결과는 README 및 results/LOCAL_VALIDATION.md, 재현 절차는 LOCAL_DEVELOPMENT.md에 있다.
+사용자는 AWS 계정/프로필 준비 전 로컬 검증과 시나리오 오류 수정을 요청했다. 2026-09-16 수정 사항은 [SCENARIO_FIXES.md](results/SCENARIO_FIXES.md)를 먼저 읽는다. AWS 미배포다. [결과](results/LOCAL_VALIDATION.md)와 [실제 배포 기준](DEPLOYMENT.md)이 최신이다. 과거 TASKS/설계 표는 모든 항목 완료를 뜻하지 않는다.
 
-## 이번 보완
+- 최종 로컬 cloud-lab 72개, Atlas 79개(고유151개), IaC 3단계 validate 통과. 최신 출력은 results/scenario-fix-validation.json 및 scenario-service-validation.json.
+- 실제 Linux WAF·PHP/MySQL TLS·DB 권한 분리·WP seed, 실제 ES/Kibana API·파서·탐지 모드, Velo ZIP 수집 검증.
+- ZIP→Atlas는 125레코드/2공유 요청의 **로컬 Linux 검증**. AWS 엔터티·IAM/STS 세션 분석이나 전체 자동 연동은 미완료다. 이를 AWS 지원 완료로 소개하지 말 것.
+- 설치 bundle/version/hash, 로그·경보 retry/dedup, CloudTrail 원본/manifest/partial, 오프라인 반출, 입력 생성기·테스트 호스트·S0~S3 제한 실행기를 구현했다.
+- 다음은 계정/AMI/견적·실제 plan 확인 → 최소 서비스 → Agent/로그 수락 → 수동 collection → 자동 collection 순서다. 계정이 없다고 기존 PC를 AWS인 것처럼 검사하지 않는다.
+- 기본 ModSecurity, AWS WAF off, 자동 수집 off. 전체 예산 목표 $300. endpoint 9개 및 선택 test EC2 비용 포함.
+- 메모리·대용량·digest 서명 검증·RDS/ALB/DNS 완전 사건 수집·대응 실행기·AI 평가·Atlas AWS 관계 모델은 별도 후속 작업.
+- `design.pdf`는 이번 작업 전부터 나타난 사용자 파일이다. 수정/커밋하지 않았다.
 
-`44e1908`의 “Phase A 완료” 초안에서 설치 연결, HCL 오류·Provider lock·인증서, SG·route·endpoint, WordPress 설정, SOC 데이터 보존·TLS, 계정별 감사·KMS, Lambda 패키징·실패 처리를 보완했다. 실제 렌더링/모의 동작을 포함한 47개 검사와 세 IaC validate를 통과시켰다. Linux 서비스를 구동한 검증은 아니다.
+계정 자격증명·원본 증거는 Git 제외. 임시 도구/로컬 증거는 `.runtime`에 보존한다. 배포 판단은 실제 출력 근거로 기록하고 루트 README A0~A7을 추측으로 체크하지 않는다.
 
-현재 operate 모드 interface endpoint는 총 9개다. 예전 비용표를 그대로 적용하지 말고 계정 크레딧·실행 시간 기준으로 총 $300 목표를 다시 산정한다.
-
-## 다음 순서
-
-1. 계정 없이 진행할 작업: offline collector의 profile/CLI/출력 manifest 계약, source/version/hash·streaming·원자적 dedup, SIEM 통합 설정과 회귀 검사.
-2. 계정 준비 후: AMI·패치·해시·IAM 프로필·예산 입력 확정, Foundation 최초 local state 생성 및 S3 이관, 최소 서비스 구축과 단계별 실제 결과 기록.
-3. DB 전용 사용자·정상 seed·DVWA 분리, Fleet Server/Agent 정책, AWS/S3/SQS·CloudWatch 통합.
-4. 정상 서비스와 원본↔SIEM 대조 후 공격 시나리오 실행. collector/교차 계정 업로드 계약을 검증한 뒤 collection_enabled 활성화.
-5. 기존 Atlas의 ES 뷰어 전환·Sysmon 시간축·MFT 검색 통합 오류는 이번에 변경하지 않았다. 별도 코드 작업으로 유지한다.
-
-상대 AI 수정 전 git diff를 확인하고, 파일 존재·문법 통과만으로 전체 완료 체크하지 않는다.
+- 새 시나리오36개는 catalog의 준비 조건을 따른다. ID를 지원한다고 공격 실행기가 구현된 것은 아니다. 기본 SIEM13개 후보 규칙과 기존 D01~D08 고급 상관 계획을 구분한다.
+- 신규 RDS 전용 KMS 키, 합성 S3 data selector, 양 계정/서울+us-east-1 수집을 반영했다. 격리 후 SOC 전송 단절 예상, 세션 만료/재발급 통제 전 Deny 해제 금지.

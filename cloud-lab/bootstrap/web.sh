@@ -8,7 +8,27 @@ source "$BOOTSTRAP_DIR/environment.sh"
 /bin/bash "$BOOTSTRAP_DIR/base.sh"
 export DEBIAN_FRONTEND=noninteractive
 # Ubuntu 24.04 repositories; installed versions are recorded after installation.
-apt-get install -y nginx suricata iptables-persistent
+apt-get install -y nginx libnginx-mod-http-modsecurity modsecurity-crs suricata iptables-persistent
+install -d -m 0750 -o www-data -g adm /var/log/modsecurity
+install -m 0644 "$BOOTSTRAP_DIR/application/modsecurity/ea.conf" /etc/modsecurity/ea.conf
+case "${WAF_MODE:-DetectionOnly}" in DetectionOnly|On) ;; *) echo 'Invalid WAF_MODE' >&2; exit 1;; esac
+sed -i "s/^SecRuleEngine .*/SecRuleEngine ${WAF_MODE:-DetectionOnly}/" /etc/modsecurity/ea.conf
+cat > /etc/logrotate.d/ea-modsecurity <<'ROTATE'
+/var/log/modsecurity/*.json /var/log/nginx/access.json {
+    daily
+    rotate 7
+    maxsize 20M
+    missingok
+    notifempty
+    compress
+    delaycompress
+    create 0640 www-data adm
+    sharedscripts
+    postrotate
+        /usr/sbin/nginx -s reopen
+    endscript
+}
+ROTATE
 install -d /etc/suricata/rules /etc/systemd/system/suricata.service.d
 install -m 0644 "$BOOTSTRAP_DIR/application/suricata/local.rules" /etc/suricata/rules/local.rules
 install -m 0644 "$BOOTSTRAP_DIR/application/suricata/suricata-ea.yaml" /etc/suricata/suricata-ea.yaml
@@ -45,5 +65,7 @@ done
 netfilter-persistent save
 systemctl restart nginx
 curl --fail --silent --show-error http://127.0.0.1:8080/health
-dpkg-query -W nginx suricata > /opt/ea-bootstrap/installed-web.tsv
+dpkg-query -W nginx libnginx-mod-http-modsecurity modsecurity-crs suricata > /opt/ea-bootstrap/installed-web.tsv
 echo "EA WEB installation complete; end-to-end and IPS verdict tests are still required"
+
+/bin/bash "$BOOTSTRAP_DIR/velociraptor.sh"

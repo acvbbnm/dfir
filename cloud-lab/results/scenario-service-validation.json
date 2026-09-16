@@ -1,0 +1,23 @@
+{
+  "timestamp_utc": "2026-09-16T01:27:15.522721+00:00",
+  "scope": "Disposable local Docker only; no AWS API, deployment, real Agent kernel enrollment or NFQUEUE verdict tests",
+  "passed": true,
+  "elastic_version": "8.19.20",
+  "velociraptor_version": "0.77.2",
+  "checks": [
+    {
+      "name": "rehearse_siem",
+      "exit_code": 0,
+      "stdout": "PASS /api/fleet/fleet_server_hosts\nPASS original retention, selected fields and date parsing through real Elasticsearch ingest pipeline\nPASS actual Defend Linux detection mode and telemetry configuration\nPASS nested ModSecurity request correlation through actual Elasticsearch pipeline\nPASS actual persisted default Fleet Server host URL\n",
+      "stderr": "",
+      "source_sha256": "da5eee7c4e46933e21c88276184821df97963f386b04c56c38790b018101faf6"
+    },
+    {
+      "name": "rehearse_scenarios",
+      "exit_code": 0,
+      "stdout": "PASS real query and keyword aggregation ea-iam-change 1\nPASS real query and keyword aggregation ea-audit-change 1\nPASS real query and keyword aggregation ea-rds-share 1\nPASS real query and keyword aggregation ea-ec2-share 1\nPASS real query and keyword aggregation ea-s3-change 1\nPASS real query and keyword aggregation ea-s3-read-burst 100\nPASS real query and keyword aggregation ea-secret-read 1\nPASS real query and keyword aggregation ea-instance-launch 1\nPASS real query and keyword aggregation ea-lambda-invoke 1\nPASS WordPress ingest and actual username threshold aggregation\nPASS actual persistence originals, raw metadata, ZIP hash and idempotent retry\n{\"scope\": \"LOCAL_DOCKER_NOT_AWS\", \"profile\": \"linux-triage-v1.1\", \"sha256\": \"e413a899884964d93d3c2b310e71dd4bc41ffbbacce30297d57e7bd34f31628a\", \"size_bytes\": 9659}\n",
+      "stderr": "",
+      "source_sha256": "1303d4c881e49bab4e467c5a360f9983852a076adf061d4d6835d2ed78e54d5b"
+    }
+  ]
+}

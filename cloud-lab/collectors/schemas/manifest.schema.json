@@ -3,15 +3,23 @@
   "title": "EA Evidence Manifest",
   "description": "증거 수집 워크플로 최종 결과 manifest",
   "type": "object",
-  "required": ["schema_version", "case_id", "finalized_at", "integrity", "jobs"],
+  "required": [
+    "schema_version",
+    "case_id",
+    "finalized_at",
+    "integrity",
+    "jobs"
+  ],
   "properties": {
     "schema_version": {
-      "type": "string",
-      "const": "1.0"
+      "enum": [
+        "1.0",
+        "1.1"
+      ]
     },
     "case_id": {
       "type": "string",
-      "pattern": "^CASE-.+"
+      "pattern": "^CASE-[A-Za-z0-9_-]{1,59}$"
     },
     "finalized_at": {
       "type": "string",
@@ -19,7 +27,11 @@
     },
     "integrity": {
       "type": "string",
-      "enum": ["PASS", "PARTIAL", "FAIL"]
+      "enum": [
+        "PASS",
+        "PARTIAL",
+        "FAIL"
+      ]
     },
     "total_objects": {
       "type": "integer",
@@ -41,12 +53,31 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["key", "size_bytes", "sha256", "status"],
+        "required": [
+          "key",
+          "size_bytes",
+          "sha256",
+          "status"
+        ],
         "properties": {
-          "key": { "type": "string" },
-          "size_bytes": { "type": "integer", "minimum": 0 },
-          "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
-          "status": { "type": "string", "enum": ["verified", "failed"] }
+          "key": {
+            "type": "string"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "verified",
+              "failed"
+            ]
+          }
         }
       }
     },
@@ -54,10 +85,17 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["key", "error"],
+        "required": [
+          "key",
+          "error"
+        ],
         "properties": {
-          "key": { "type": "string" },
-          "error": { "type": "string" }
+          "key": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          }
         }
       }
     },
@@ -65,5 +103,26 @@
       "type": "array",
       "description": "Step Functions 병렬 수집 결과 원본"
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "integrity": {
+            "enum": [
+              "PASS",
+              "PARTIAL"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "jobs": {
+            "minItems": 1
+          }
+        }
+      }
+    }
+  ]
 }

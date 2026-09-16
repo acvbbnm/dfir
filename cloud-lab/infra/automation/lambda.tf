@@ -67,12 +67,14 @@ resource "aws_lambda_function" "this" {
       EVIDENCE_KMS_KEY_ARN = var.kms_evidence_s3_arn
       PROJECT              = var.project
       REGION               = var.region
+      AUDIT_EXTRA_REGIONS  = join(",", var.audit_extra_regions)
       SECURITY_ACCOUNT_ID  = var.security_account_id
       WORKLOAD_ACCOUNT_ID  = var.workload_account_id
       CASES_TABLE          = aws_dynamodb_table.cases.name
       DEDUP_TABLE          = aws_dynamodb_table.dedup.name
       STAGING_BUCKET       = var.s3_evidence_staging_bucket
       FINAL_BUCKET         = var.s3_evidence_final_bucket
+      CLOUDTRAIL_BUCKET    = "${var.project}-cloudtrail-${var.security_account_id}"
     }
   }
 
@@ -150,6 +152,7 @@ resource "aws_iam_role_policy" "lambda_s3" {
         Effect = "Allow"
         Action = [
           "s3:GetObject",
+          "s3:GetObjectVersion",
           "s3:PutObject",
           "s3:ListBucket"
         ]
@@ -226,4 +229,16 @@ resource "aws_iam_role_policy" "lambda_ssm" {
       }
     ]
   })
+}
+
+resource "aws_iam_role_policy" "original_cloudtrail" {
+  provider = aws.security
+  name     = "original-cloudtrail-read"
+  role     = aws_iam_role.lambda["collect-aws-logs"].id
+  policy = jsonencode({ Version = "2012-10-17", Statement = [
+    { Effect = "Allow", Action = ["s3:ListBucket"], Resource = "arn:aws:s3:::${var.project}-cloudtrail-${var.security_account_id}",
+    Condition = { StringLike = { "s3:prefix" = ["AWSLogs/${var.workload_account_id}/*", "AWSLogs/${var.security_account_id}/*"] } } },
+    { Effect = "Allow", Action = ["s3:GetObject", "s3:GetObjectVersion"],
+    Resource = ["arn:aws:s3:::${var.project}-cloudtrail-${var.security_account_id}/AWSLogs/${var.workload_account_id}/*", "arn:aws:s3:::${var.project}-cloudtrail-${var.security_account_id}/AWSLogs/${var.security_account_id}/*"] }
+  ] })
 }

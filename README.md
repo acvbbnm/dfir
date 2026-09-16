@@ -15,15 +15,15 @@ KAPE **Modules CSV 결과**를 읽어 원래 레코드와 출처를 SQLite에 �
 
 공격 샘플 DB는 37,357행 중 37,223행이 `evtx_other`다. 이들은 원본과 시간축을 제공하지만 의미 관계를 해석하지 않는다. 따라서 그래프 UI 완성은 모든 로그 종류의 분석 완성을 뜻하지 않는다. Phase 4에서 MFT/USN이 파이프라인에 통합되었고, Sysmon EVTX와 SRUM 어댑터도 추가되었다.
 
-### 최신 통합 점검 (`2905f96` 기준)
+### 이전 통합 점검 (`2905f96` 기준)
 
-전체 75개 단위 테스트는 통과했지만 아래 별도 통합 재현은 실패했다. Phase 4 전체 완료로 취급하지 않는다.
+당시 75개 단위 테스트는 통과했지만 아래 별도 통합 재현은 실패했다. 이후 Sysmon 시간축 fallback과 cloud-import를 보완해 2026-09-16 Atlas 79개를 통과했다. MFT 검색 통합은 남아 있어 Phase 4 전체 완료로 취급하지 않는다.
 
 - Sysmon Event ID 1 CSV를 `ingest()`로 정상 수집한 뒤 `TimelineIndex()`를 생성하면 `KeyError: sysmon_process_create`가 발생한다. 새 종류가 `timeline.KINDS`에 연결되지 않았다.
 - MFT 1행 CSV는 `fs_rows`에 저장되지만 소스 상태가 `complete`다. `FileIndex.sources()`는 `indexed`만 읽어 검색 가능한 소스가 0개로 반환된다.
 - Sigma 매칭 코드는 추가됐으며 시간축·그래프의 후보 표시 UI와 실제 정확도 평가는 남았다. 75개 테스트 통과는 모든 기능의 실제 동작 완성을 의미하지 않는다.
 
-## AWS 관제·포렌식 자동화 계획 (2026-09-11)
+## AWS 관제·포렌식 자동화 계획 (2026-09-15)
 
 총 AWS 예산 $300을 목표로 한 신규 실습이다. 상세 구성·비용 가정·검증 기준은 [cloud-lab/DESIGN.md](cloud-lab/DESIGN.md)를 따른다. AWS 리소스는 아직 배포하지 않았다. AWS 실습 인프라와 Atlas 개발은 모두 이 저장소에서 관리한다.
 
@@ -31,7 +31,11 @@ KAPE **Modules CSV 결과**를 읽어 원래 레코드와 출처를 SQLite에 �
 - [x] AWS 샘플 고정 커밋 검토·오픈소스 활용 계획 — [도구 선택과 재사용 범위](cloud-lab/OPEN_SOURCE.md)
 - [x] 클라우드 포렌식 상세 설계 — [계정/IAM/KMS·로그·휘발성·조사 파이프라인](cloud-lab/CLOUD_FORENSICS.md)
 - [x] 인프라 재설계 초안 — [서버·WordPress/RDS·DMZ·WAF/IPS/EDR·중앙 로그·실제 공격](cloud-lab/BUILD_AND_ATTACK.md)
-- [x] 설치 연결·네트워크·SOC 디스크/TLS·수집 실패 처리 보완 및 로컬 회귀 검사 47개 통과 — [검증 기록](cloud-lab/results/LOCAL_VALIDATION.md)
+- [x] 배포 전 로컬 검사: cloud-lab 63개·Atlas 79개 및 실제 Linux WAF/웹·DB·SIEM·수집 검증 — [검증 기록과 한계](cloud-lab/results/LOCAL_VALIDATION.md)
+- [x] 신규 시나리오 36개 검토와 로그·스키마·탐지·대응 계약 보완 — [수정 결과/남은 AWS 수락 범위](cloud-lab/results/SCENARIO_FIXES.md). **실제 AWS 공격·탐지 검증은 미완료**
+- [x] 2026-09-16 최종 회귀: cloud-lab 72개 + Atlas 79개 = **151개 통과**, 실제 ES 검색/집계·Fleet URL 저장·지속성 원본 ZIP 검증
+- [x] 버전 고정·배포 입력 생성·제한된 테스트 실행기·원본 증거 반출 준비 — [배포 순서](cloud-lab/DEPLOYMENT.md)
+- [x] 로컬 Linux ZIP → Atlas 초기 가져오기: 125레코드·2공유 요청. **AWS 분석 기능 완성을 뜻하지 않음**
 - [x] OpenTofu foundation/lab/automation `validate` 및 Provider lock 기록 — [재현 방법](cloud-lab/LOCAL_DEVELOPMENT.md)
 
 - [ ] A0: 인프라·웹/DB·방어 정책·예산 준비, OSS 버전/해시 lock
@@ -43,7 +47,7 @@ KAPE **Modules CSV 결과**를 읽어 원래 레코드와 출처를 SQLite에 �
 - [ ] A6: 네트워크·IAM/DB 대응·복구 플레이북 검증
 - [ ] A7: AI 평가·통합 데모·보고서·증거 내보내기·AWS 자원 정리
 
-실제 구축 순서와 완료 기준은 B00~B14로 분해했다. 이전 Windows APP/EC2 DB 기본안은 교체했다. 기존 Atlas의 Sysmon/MFT 통합 보완은 별도 코드 작업으로 유지한다.
+실제 구축 순서와 완료 기준은 B00~B14로 분해했다. 이전 Windows APP/EC2 DB 기본안은 교체했다. Sysmon을 포함한 새 시간축 종류의 fallback은 보완했다. MFT 검색 통합은 남았다. AWS 실제 로그 기반 자원·IAM/STS 관계 모델, SIEM→Atlas 전체 자동 연동은 후속 작업이다.
 
 ## 시간순 전체 맵 사용법
 

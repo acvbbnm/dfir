@@ -1,64 +1,26 @@
 {
   "scenario_id": "S5",
-  "name": "iam_privilege_escalation",
-  "description": "IAM 역할 남용 + 권한 상승 시도 (클라우드 레이어)",
-  "category": "privilege_escalation",
-  "severity": "critical",
-  "mitre_tactics": ["TA0004-Privilege Escalation", "TA0003-Persistence", "TA0005-Defense Evasion"],
-  "mitre_techniques": ["T1078.004-Valid Accounts: Cloud Accounts", "T1098-Account Manipulation", "T1552.005-Unsecured Credentials: Cloud Instance Metadata API"],
-  "prerequisites": ["S4 웹셸 활성 또는 EC2 인스턴스 접근", "IMDSv2 우회 시나리오"],
-  "actor": "공격자 (인스턴스 내부에서)",
+  "name": "iam_negative_control",
+  "description": "앱 역할의 권한 경계와 제어 평면 감사 확인",
+  "category": "cloud_identity",
+  "severity": "medium",
+  "implementation": "manual-acceptance",
+  "aws_execution_status": "not-executed",
+  "prerequisites": [
+    "격리된 Workload 계정",
+    "운영자 Workload 프로필 준비",
+    "APP 역할 ea-app-role 및 앱 secret ARN 출력 확인"
+  ],
   "steps": [
-    {
-      "step": 1,
-      "action": "IMDS 토큰 획득 시도 (IMDSv2)",
-      "command": "TOKEN=$(curl -X PUT 'http://169.254.169.254/latest/api/token' -H 'X-aws-ec2-metadata-token-ttl-seconds: 21600') && curl -H \"X-aws-ec2-metadata-token: $TOKEN\" http://169.254.169.254/latest/meta-data/iam/security-credentials/",
-      "expected": "인스턴스 역할 임시 자격증명 획득"
-    },
-    {
-      "step": 2,
-      "action": "획득 자격증명으로 API 호출",
-      "command": "aws sts get-caller-identity && aws s3 ls && aws iam list-roles",
-      "expected": "S3 접근 가능, IAM list 권한 없음 (최소 권한)"
-    },
-    {
-      "step": 3,
-      "action": "권한 상승 시도 (정책 첨부)",
-      "command": "aws iam attach-role-policy --role-name EA-APP-Role --policy-arn arn:aws:iam::aws:policy/AdministratorAccess",
-      "expected": "AccessDenied → CloudTrail 기록"
-    },
-    {
-      "step": 4,
-      "action": "Secrets Manager 접근 시도",
-      "command": "aws secretsmanager get-secret-value --secret-id ea-wordpress-db-credentials",
-      "expected": "APP 역할은 접근 가능 → DB 자격증명 유출 가능"
-    },
-    {
-      "step": 5,
-      "action": "Security 계정 역할 AssumeRole 시도",
-      "command": "aws sts assume-role --role-arn arn:aws:iam::SECURITY_ACCOUNT:role/EA-CollectionTarget --role-session-name attacker",
-      "expected": "AccessDenied (Condition 태그 불일치)"
-    }
+    "운영자 IAM policy simulator로 APP 역할의 master-secret 읽기/권한 부여 거부 여부 확인",
+    "APP 내부에서 선택한 비허용 테스트 secret 읽기 시도만 수행하고 AccessDenied를 보존; 실제 값 출력 금지",
+    "IMDSv2 토큰 정상 사용을 취약점 우회로 기록하지 않음. CloudGoat ec2_ssrf는 별도 자원/견적/시나리오 승인 후 구축"
   ],
   "expected_evidence": {
-    "waf": [],
-    "suricata": [],
-    "nginx": [],
-    "apache": [],
-    "wordpress_audit": [],
-    "elastic_defend": ["aws CLI 프로세스 실행 (www-data 또는 비정상 사용자)"],
-    "auditd": ["execve: aws, curl (169.254.169.254)"],
-    "flow_logs": ["인스턴스→IMDS 169.254.169.254 트래픽"],
     "cloudtrail": [
-      "GetCallerIdentity",
-      "ListBuckets", "ListRoles (AccessDenied)",
-      "AttachRolePolicy (AccessDenied)",
-      "GetSecretValue",
-      "AssumeRole (AccessDenied)",
-      "전부 sourceIPAddress가 인스턴스 IP"
-    ],
-    "rds": []
+      "실제로 실행한 거부 API와 호출 principal"
+    ]
   },
-  "detection_rules": ["cloudtrail-unauthorized-api", "cloudtrail-iam-policy-change-attempt", "cloudtrail-secrets-access", "elastic-aws-cli-from-webserver", "auditd-imds-access"],
-  "success_criteria": "CloudTrail에서 비인가 API 호출 탐지 → alert → 증거 수집 + IAM 대응 플레이북 트리거"
+  "actor": "authorized operator / temporary test-a client",
+  "success_criteria": "예상/실제 결과, 원본 위치, 누락, 정책 모드를 각각 기록하고 SIEM 조회와 대조"
 }

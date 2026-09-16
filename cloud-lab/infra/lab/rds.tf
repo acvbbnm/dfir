@@ -55,6 +55,7 @@ resource "aws_db_instance" "main" {
   max_allocated_storage = 30
   storage_type          = "gp3"
   storage_encrypted     = true
+  kms_key_id            = aws_kms_key.rds.arn
 
   db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [aws_security_group.rds.id]
@@ -67,7 +68,7 @@ resource "aws_db_instance" "main" {
   multi_az                  = false
   publicly_accessible       = false
   skip_final_snapshot       = false
-  final_snapshot_identifier = "${var.project}-mysql-final"
+  final_snapshot_identifier = "${var.project}-mysql-final-${random_id.database_run.hex}"
   backup_retention_period   = 7
   copy_tags_to_snapshot     = true
   deletion_protection       = false
@@ -119,3 +120,15 @@ resource "aws_secretsmanager_secret_version" "wordpress" {
     dbname   = aws_db_instance.main.db_name
   })
 }
+
+resource "random_password" "dvwa" {
+  length  = 32
+  special = false
+}
+resource "aws_secretsmanager_secret" "dvwa" { name = "${var.project}/db/dvwa" }
+resource "aws_secretsmanager_secret_version" "dvwa" {
+  secret_id = aws_secretsmanager_secret.dvwa.id
+  secret_string = jsonencode({ username = "dvwa_user", password = random_password.dvwa.result,
+  host = aws_db_instance.main.address, port = aws_db_instance.main.port, dbname = "dvwa" })
+}
+resource "random_id" "database_run" { byte_length = 4 }

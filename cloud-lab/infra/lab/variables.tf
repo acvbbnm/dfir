@@ -11,6 +11,16 @@ variable "region" {
   default = "ap-northeast-2"
 }
 
+variable "audit_extra_regions" {
+  description = "Extra scenario event regions; also configure automation with the same list."
+  type        = list(string)
+  default     = []
+  validation {
+    condition     = length(var.audit_extra_regions) <= 3 && alltrue([for region in var.audit_extra_regions : can(regex("^[a-z]{2}(-[a-z]+)+-[0-9]$", region))])
+    error_message = "Select at most three explicit AWS regions."
+  }
+}
+
 variable "project" {
   type    = string
   default = "ea"
@@ -76,7 +86,7 @@ variable "wordpress_version" {
   description = "Exact normal-portal release selected and reviewed before deployment."
   type        = string
   validation {
-    condition     = can(regex("^[0-9]+\\.[0-9]+\\.[0-9]+$", var.wordpress_version))
+    condition     = can(regex("^[0-9]+\\.[0-9]+(\\.[0-9]+)?$", var.wordpress_version))
     error_message = "Use an exact WordPress patch release."
   }
 }
@@ -89,9 +99,26 @@ variable "wordpress_sha256" {
 }
 variable "elastic_version" {
   type    = string
-  default = "8.17.0"
+  default = "8.19.20"
   validation {
     condition     = can(regex("^8\\.[0-9]+\\.[0-9]+$", var.elastic_version))
     error_message = "Provide an exact compatible Elastic 8.x patch release."
   }
 }
+
+variable "enable_aws_waf" {
+  description = "Optional paid comparison; ModSecurity is the default WAF."
+  type        = bool
+  default     = false
+}
+variable "waf_mode" {
+  type    = string
+  default = "DetectionOnly"
+  validation {
+    condition     = contains(["DetectionOnly", "On"], var.waf_mode)
+    error_message = "Use DetectionOnly for baseline or On for blocking."
+  }
+}
+
+variable "evidence_bucket" { type = string }
+variable "evidence_kms_key_arn" { type = string }

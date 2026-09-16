@@ -1,6 +1,6 @@
 {
   "playbook": "recovery",
-  "version": "1.0",
+  "version": "1.1",
   "description": "격리 해제 + 정상 서비스 복구",
   "prerequisite": "containment/iam_response 완료, 분석가 승인",
   "steps": [
@@ -14,9 +14,21 @@
       ]
     },
     {
+      "name": "verify_session_recovery_gate",
+      "required_checks": [
+        "침해 경로 제거·재발급 제한 확인",
+        "기존 토큰의 최장 만료 시각+전파 여유 이후임을 확인; 불명확하면 Deny 유지",
+        "기존 토큰의 지정 자원 API 거부 및 정상 신규 세션의 최소 권한 접근 확인",
+        "정책 충돌·분석가 승인·근거 파일 확인"
+      ],
+      "on_failure": "긴급 Deny 제거 금지; PARTIAL_RECOVERY 기록"
+    },
+    {
       "name": "restore_security_groups",
       "action": "EC2 ModifyInstanceAttribute",
-      "params": { "groups": "before_sg.json의 원래 SG 목록" },
+      "params": {
+        "groups": "before_sg.json의 원래 SG 목록"
+      },
       "verify": "DescribeInstances → SG 일치"
     },
     {
@@ -25,12 +37,14 @@
         "IAM DeleteRolePolicy (ea-revoke-sessions)",
         "IAM DeleteRolePolicy (ea-emergency-deny) — 있는 경우"
       ],
-      "verify": "ListRolePolicies → 긴급 정책 없음"
+      "verify": "정책 제거 후 이전 자격증명과 새 정상 세션의 자원 접근을 재검증; 잔존 접근이면 복구 완료 금지",
+      "condition": "verify_session_recovery_gate의 모든 검사 통과. 모호하거나 아직 유효한 과거 토큰이 있으면 retain"
     },
     {
       "name": "register_to_alb",
       "action": "ALB RegisterTargets",
-      "verify": "DescribeTargetHealth → healthy"
+      "verify": "DescribeTargetHealth → healthy",
+      "condition": "before_alb.json에서 기존 target으로 확인된 인스턴스만 재등록"
     },
     {
       "name": "verify_service",
@@ -51,6 +65,12 @@
   ],
   "record": {
     "save_to": "cases/{case_id}/response/recovery.json",
-    "fields": ["before_recovery_state", "actions_taken", "verify_results", "service_restored_at"]
-  }
+    "fields": [
+      "before_recovery_state",
+      "actions_taken",
+      "verify_results",
+      "service_restored_at"
+    ]
+  },
+  "implementation": "manual-runbook; no response executor deployed"
 }

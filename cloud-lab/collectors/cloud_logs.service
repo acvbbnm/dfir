@@ -1,0 +1,18 @@
+[Unit]
+Description=EA bounded AWS log reader
+After=network-online.target
+Wants=network-online.target
+[Service]
+User=ea-collector
+Group=ea-collector
+EnvironmentFile=/etc/ea-collector/env
+ExecStart=/usr/bin/python3 /opt/ea-collectors/cloud_logs.py --config /etc/ea-collector/cloud-sources.json --state /var/lib/ea-collector/cloud.sqlite
+Restart=on-failure
+RestartSec=15
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/ea-collector
+PrivateTmp=yes
+[Install]
+WantedBy=multi-user.target

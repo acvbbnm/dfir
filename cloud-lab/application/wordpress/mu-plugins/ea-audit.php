@@ -25,6 +25,7 @@ class EA_Audit_Logger {
             'timestamp' => gmdate('Y-m-d\TH:i:s.v\Z'),
             'action'    => $action,
             'client_ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+            'request_id' => $_SERVER['HTTP_X_REQUEST_ID'] ?? null,
             'user_agent'=> $_SERVER['HTTP_USER_AGENT'] ?? '',
         ];
         $entry = array_merge($entry, $data);

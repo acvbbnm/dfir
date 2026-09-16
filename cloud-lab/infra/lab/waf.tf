@@ -1,4 +1,5 @@
 resource "aws_wafv2_web_acl" "main" {
+  count       = var.enable_aws_waf ? 1 : 0
   name        = "${var.project}-waf"
   description = "EA WordPress WAF"
   scope       = "REGIONAL"
@@ -125,11 +126,13 @@ resource "aws_wafv2_web_acl" "main" {
 }
 
 resource "aws_wafv2_web_acl_association" "alb" {
+  count        = var.enable_aws_waf ? 1 : 0
   resource_arn = aws_lb.main.arn
-  web_acl_arn  = aws_wafv2_web_acl.main.arn
+  web_acl_arn  = aws_wafv2_web_acl.main[0].arn
 }
 
 resource "aws_wafv2_web_acl_logging_configuration" "main" {
-  resource_arn            = aws_wafv2_web_acl.main.arn
+  count                   = var.enable_aws_waf ? 1 : 0
+  resource_arn            = aws_wafv2_web_acl.main[0].arn
   log_destination_configs = ["arn:aws:s3:::aws-waf-logs-${var.project}-${var.workload_account_id}"]
 }

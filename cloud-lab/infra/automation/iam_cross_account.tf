@@ -104,51 +104,46 @@ resource "aws_iam_role_policy" "collection_target_describe" {
   })
 }
 
-# SSM 문서 — Velociraptor Offline Collect
+
+# SSM environment interpolation prevents command construction from request strings.
 resource "aws_ssm_document" "velociraptor_collect" {
   provider      = aws.workload
   name          = "${var.project}-VelociraptorOfflineCollect"
   document_type = "Command"
   target_type   = "/AWS::EC2::Instance"
-
   content = jsonencode({
     schemaVersion = "2.2"
-    description   = "EA Velociraptor Offline Collector"
+    description   = "Fixed Linux triage with scoped evidence upload"
     parameters = {
-      CaseId = {
-        type           = "String"
-        description    = "사건 ID"
-        allowedPattern = "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
-      }
-      StagingBucket = {
-        type    = "String"
-        default = var.s3_evidence_staging_bucket
-      }
-      CollectionProfile = {
-        type          = "String"
-        default       = "standard"
-        allowedValues = ["minimal", "standard", "full"]
-      }
+      CaseId    = { type = "String", allowedPattern = "^CASE-[A-Za-z0-9_-]{1,59}$", interpolationType = "ENV_VAR" }
+      UploadUrl = { type = "String", allowedPattern = "^https://[a-zA-Z0-9.-]+/cases/.+$", interpolationType = "ENV_VAR" }
     }
-    mainSteps = [
-      {
-        action = "aws:runShellScript"
-        name   = "runCollector"
-        inputs = {
-          runCommand = [
-            "#!/bin/bash",
-            "set -euo pipefail",
-            "CASE_DIR=\"/tmp/ea-collect-{{ CaseId }}\"",
-            "mkdir -p \"$CASE_DIR\"",
-            "/opt/ea-tools/velociraptor-collector --profile {{ CollectionProfile }} --output-dir \"$CASE_DIR\" 2>&1 | tee \"$CASE_DIR/collector.log\"",
-            "aws s3 cp \"$CASE_DIR/\" \"s3://{{ StagingBucket }}/cases/{{ CaseId }}/host-triage/\" --recursive",
-            "rm -rf \"$CASE_DIR\""
-          ]
-          timeoutSeconds = "300"
-        }
+    mainSteps = [{
+      action = "aws:runShellScript"
+      name   = "runCollector"
+      inputs = {
+        runCommand     = ["set -eu", "python3 /opt/ea-tools/host_collect.py --case-id \"$SSM_CaseId\""]
+        timeoutSeconds = "300"
       }
-    ]
+    }]
   })
+}
 
-  tags = { Name = "${var.project}-velociraptor-collect" }
+resource "aws_iam_role" "central_log_reader" {
+  provider = aws.security
+  name     = "${var.project}-central-log-reader"
+  assume_role_policy = jsonencode({ Version = "2012-10-17", Statement = [{
+    Effect    = "Allow", Principal = { AWS = "arn:aws:iam::${var.workload_account_id}:root" }, Action = "sts:AssumeRole",
+    Condition = { ArnEquals = { "aws:PrincipalArn" = "arn:aws:iam::${var.workload_account_id}:role/${var.project}-soc-role" } }
+  }] })
+}
+resource "aws_iam_role_policy" "central_log_reader" {
+  provider = aws.security
+  role     = aws_iam_role.central_log_reader.id
+  policy = jsonencode({ Version = "2012-10-17", Statement = [
+    { Effect = "Allow", Action = ["s3:ListBucket"], Resource = "arn:aws:s3:::${var.project}-cloudtrail-${var.security_account_id}",
+    Condition = { StringLike = { "s3:prefix" = ["AWSLogs/${var.workload_account_id}/*", "AWSLogs/${var.security_account_id}/*"] } } },
+    { Effect = "Allow", Action = ["s3:GetObject", "s3:GetObjectVersion"], Resource = ["arn:aws:s3:::${var.project}-cloudtrail-${var.security_account_id}/AWSLogs/${var.workload_account_id}/*", "arn:aws:s3:::${var.project}-cloudtrail-${var.security_account_id}/AWSLogs/${var.security_account_id}/*"] },
+    { Effect = "Allow", Action = ["kms:Decrypt"], Resource = var.kms_evidence_s3_arn }
+  ] })
 }

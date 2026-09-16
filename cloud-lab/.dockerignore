@@ -1,0 +1,11 @@
+*
+!application/
+!application/**
+!bootstrap/
+!bootstrap/**
+!collectors/
+!collectors/**
+!local/
+!local/**
+**/__pycache__
+**/*.pyc

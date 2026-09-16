@@ -25,7 +25,10 @@ def lambda_handler(event, context):
     if not trigger.get("alert_id") or not trigger.get("rule_name"):
         return {"status": "INVALID", "reason": "missing trigger fields"}
 
-    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}", case_id):
+    # Canonical contract: the collector hashes space/alert/playbook into a stable case ID; every downstream stage
+    # (SSM document, verify-finalize, collectors, export) enforces ^CASE-[A-Za-z0-9_-]{1,59}$.
+    # A looser pattern here would reserve a case that the rest of the pipeline later rejects.
+    if not re.fullmatch(r"CASE-[A-Za-z0-9_-]{1,59}", case_id):
         return {"status": "INVALID", "reason": "invalid case ID"}
     if target.get("type") not in {"ec2", "rds", "iam", "s3"}:
         return {"status": "INVALID", "reason": "unsupported target type"}
@@ -60,35 +63,30 @@ def lambda_handler(event, context):
 
     dedup_key = f"{trigger.get('space_id', 'default')}#{trigger['alert_id']}#{trigger.get('playbook_version', '1.0')}"
 
-    ddb = boto3.resource("dynamodb", region_name=REGION)
-    dedup_table = ddb.Table(DEDUP_TABLE)
-
+    # Both records commit together. A reserved dedup key can no longer orphan a case.
+    from boto3.dynamodb.types import TypeSerializer
+    from botocore.exceptions import ClientError
+    serialize = TypeSerializer().serialize
+    owner = event.get('execution_id', case_id)
+    ddb = boto3.client('dynamodb', region_name=REGION)
+    stamp = trigger.get('detected_at', '')
+    entries = [
+        (DEDUP_TABLE, 'dedup_key', {'dedup_key':dedup_key,'case_id':case_id,
+         'execution_id':owner,'created_at':stamp,'ttl':int(time.time())+7*86400}),
+        (CASES_TABLE, 'case_id', {'case_id':case_id,'execution_id':owner,'status':'VALIDATED',
+         'created_at':stamp,'updated_at':stamp,'trigger':trigger,'target':target,'jobs':[]})]
     try:
-        dedup_table.put_item(
-            Item={
-                "dedup_key": dedup_key,
-                "case_id": case_id,
-                "created_at": trigger.get("detected_at", ""),
-                "ttl": int(time.time()) + 7 * 86400,
-            },
-            ConditionExpression="attribute_not_exists(dedup_key)",
-        )
-    except ddb.meta.client.exceptions.ConditionalCheckFailedException:
-        logger.info("Duplicate alert: %s", dedup_key)
-        return {"status": "DUPLICATE", "case_id": case_id}
-
-    cases_table = ddb.Table(CASES_TABLE)
-    cases_table.put_item(
-        Item={
-            "case_id": case_id,
-            "status": "VALIDATED",
-            "created_at": trigger.get("detected_at", ""),
-            "updated_at": trigger.get("detected_at", ""),
-            "trigger": trigger,
-            "target": target,
-            "jobs": [],
-        }
-    )
+        ddb.transact_write_items(TransactItems=[{'Put':{'TableName':table,
+            'Item':{k:serialize(v) for k,v in item.items()},
+            'ConditionExpression':'attribute_not_exists('+key+')'}} for table,key,item in entries])
+    except ClientError as exc:
+        if exc.response['Error']['Code']!='TransactionCanceledException':raise
+        reasons=exc.response.get('CancellationReasons',[])
+        if not any(r.get('Code')=='ConditionalCheckFailed' for r in reasons):raise
+        existing=ddb.get_item(TableName=CASES_TABLE,Key={'case_id':{'S':case_id}},ConsistentRead=True).get('Item',{})
+        if existing.get('execution_id',{}).get('S')==owner and existing.get('status',{}).get('S')=='VALIDATED':
+            return {'status':'VALID','case_id':case_id}
+        return {'status':'DUPLICATE','case_id':case_id}
 
     logger.info("Case %s validated", case_id)
     return {"status": "VALID", "case_id": case_id}

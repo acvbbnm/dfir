@@ -1,5 +1,10 @@
 # AWS 인프라·관측·증거 파이프라인 상세 설계
 
+> 2026-09-16 실행 기준: [시나리오 v1.1](scenarios/SCENARIO_LIBRARY.md)·[수정/지원 범위](results/SCENARIO_FIXES.md). 아래의 SQS·landing 복제·snapshot copy·host 없는 자동 사건·고급 상관·대응 실행기는 후속 목표이며 현재 구현 완료를 뜻하지 않는다. S0~S6는 준비 검사, N/W/H/C/I/D/E/X/K는 본 실험 ID다.
+
+
+> **2026-09-15 구현/검증 대조:** 이 문서의 장기 목표와 과거 후보 구성을 현재 완료 상태로 해석하지 않는다. 현재 기준선은 [DEPLOYMENT.md](DEPLOYMENT.md), 수행된 검사는 [LOCAL_VALIDATION.md](results/LOCAL_VALIDATION.md)다. ModSecurity 기본·내부 ALB·선택 test-a 실행기·초기 Atlas 오프라인 import까지 준비했으며 AWS 수락/전체 분석·대응은 미완료다.
+
 > 2026-09-11 구현 보완: [로컬 검증 기록](results/LOCAL_VALIDATION.md)과 [실행·잔여 작업](LOCAL_DEVELOPMENT.md)을 확인한다. 현재 operate 모드는 SSM 계열 3개 + 일반 API 6개로 interface endpoint 총 9개다. 이전 2~3개 기준 비용표는 현재 IaC의 확정 견적이 아니며 실제 단가·실행 시간으로 재산정해야 한다. AWS 배포는 아직 수행하지 않았다.
 
 
@@ -157,7 +162,7 @@ AssumeRole session ARN과 IAM role ARN을 같은 문자열로 합치지 않는�
 | 소스 | 반드시 켤 설정 | 경로·보존 | 조사에 쓰는 연결 | 자료가 말해주지 않는 것 |
 |---|---|---|---|---|
 | CloudTrail 관리 | 양 계정 read/write management, multi-region trail, global service events, digest | Security audit S3에 직접 전달, 30일 이상 또는 선택 사건 보존 | IAM/STS→AWS API→리소스, 변경·수집·대응 이력 | 셸 명령 전체·SQL·파일 내용 |
-| CloudTrail 데이터 | 실습 S3 객체와 최종 증거 접근 등 지정 ARN/prefix의 read/write | Security audit, 이벤트량 측정 | 누가 어떤 object/version에 접근했는지 | 사전 활성화 이전의 객체 작업 |
+| CloudTrail 데이터 | 기본 합성 S3 synthetic/ prefix read/write; Lambda는 명시적 ARN 선택 후, 최종 증거 data event는 별도 확장 | Security audit, 이벤트량 측정 | 누가 어떤 object/version에 접근했는지 | 사전 활성화 이전의 객체 작업 |
 | WAF | full logging, 필요한 차단·허용 이벤트, 민감 header redaction | Workload aws-waf-logs landing→Elastic, Security archive로 복제 | webACL, rule, action, request 필드 | 차단된 요청의 backend 실행, HTTP 전체 본문 |
 | ALB | access logging, target·trace 필드 보존 | Workload landing→Elastic, Security archive로 복제 | 요청→target IP/port→유효 host 매핑 | 요청을 처리한 OS 프로세스의 확정 |
 | Windows Sysmon (후속 선택) | 1/3/11/22 포함하는 고정 config, 필요한 제외 규칙 | Agent→Elastic, 원본 EVTX triage→Security | ProcessGuid·ParentProcessGuid·파일·연결 | 기본 설치가 모든 event를 수집한다고 가정 불가 |
@@ -201,7 +206,7 @@ Linux journal·웹/앱 감사·Suricata EVE와 RDS CloudWatch 로그에 디스�
 
 - CloudTrail: 양 계정 trail이 Security의 audit bucket으로 직접 전달한다. source account/trail ARN과 서비스 principal을 제한한다. [다중 계정 로그 보관](https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-receive-logs-from-multiple-accounts.html)
 - WAF/ALB/Flow: 첫 구현은 Workload 소유 landing bucket으로 수집하고, 그 경로를 Elastic ingest가 읽는다. WAF용 버킷은 서비스 명명 요구를 따른다.
-- landing→Security archive는 같은 리전 S3 replication을 사용한다. 양쪽 Versioning·destination ownership·KMS·복제 역할 정책을 검증한다.
+- 후속 구현: landing→Security archive에 같은 리전 S3 replication을 적용한다. 현재 IaC에는 없다. 양쪽 Versioning·destination ownership·KMS·복제 역할 정책을 검증한다.
 - delete marker 복제를 비활성화한다. source 삭제가 이미 복제된 evidence version의 삭제 권한으로 이어지지 않게 한다. [복제 삭제 동작](https://docs.aws.amazon.com/AmazonS3/latest/userguide/delete-marker-replication.html)
 - 복제는 즉시·무손실 완료라고 가정하지 않는다. pending/failed와 전송 지연을 감시하고, 복제 전 source 유실은 결손으로 남긴다.
 - 운영 로그 archive와 사건용 증거 보존 기간을 구분한다. 모든 bucket은 Block Public Access를 적용한다.

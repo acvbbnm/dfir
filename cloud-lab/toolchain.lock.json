@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
-  "locked_at": "2026-09-09",
-  "notes": "Provider constraints and hashes are locked. Remaining TODO values are deployment gates, not verified versions. Elastic 8.17.0 remains a compatibility candidate requiring security/support review before AWS use.",
+  "locked_at": "2026-09-15",
+  "notes": "Binary artifacts are pinned in artifacts.lock.json; APT versions are recorded in linux-validation.json. AMI availability, regional prices and cloud acceptance remain deployment gates.",
   "infrastructure": {
     "opentofu": {
       "version": "1.9.0",
@@ -25,22 +25,25 @@
     }
   },
   "elastic_stack": {
-    "version": "8.17.0",
+    "version": "8.19.20",
     "components": [
       "elasticsearch",
       "kibana",
       "elastic-agent",
       "fleet-server"
     ],
-    "license": "Elastic License 2.0 + SSPL (Basic features free)",
+    "license": "See THIRD_PARTY_NOTICES.md; vendor distribution / Basic license tested",
     "apt_repo": "https://artifacts.elastic.co/packages/8.x/apt",
-    "sha256": "TODO_VERIFY_PER_PACKAGE"
+    "agent_sha512": "92568f4dd7bf3ddde282e599041fda5c9a122f198d11990779fd7d22f6052806b113c60a73a1b00f143d59308325aa3582b052480231ea3a0213de0f4cdac03f"
   },
   "web_stack": {
     "wordpress": {
-      "version": "6.7.x",
-      "license": "GPLv2",
-      "sha256": "TODO_VERIFY"
+      "version": "7.1",
+      "url": "https://wordpress.org/wordpress-7.1.tar.gz",
+      "filename": "wordpress.tar.gz",
+      "license": "GPL-2.0-or-later",
+      "sha256": "05a5f89138f632b7329f1202f2a0553c5f7fe4daf8e4b9ca7ebae9b9466b9e86",
+      "hash_source": "SHA256 computed over HTTPS download; not an independent signature"
     },
     "php": {
       "version": "8.3",
@@ -49,7 +52,7 @@
     },
     "mysql": {
       "version": "8.4",
-      "notes": "RDS managed, engine version pinned in parameter group"
+      "notes": "RDS engine family mysql8.4 requested; actual regional minor version must be checked at deployment. Docker MySQL 8.4.11 used for local tests."
     },
     "nginx": {
       "version": "1.24.x",
@@ -64,50 +67,50 @@
   },
   "security_tools": {
     "suricata": {
-      "version": "7.0.x",
+      "version": "7.0.3-1build3 (local Ubuntu package)",
       "source": "Ubuntu 24.04 signed package repositories; record installed-web.tsv",
-      "license": "GPLv2",
-      "sha256": "TODO_VERIFY"
+      "license": "GPLv2"
     },
     "velociraptor": {
-      "version": "0.73.x",
-      "variant": "linux-amd64-collector",
-      "source": "https://github.com/Velocidex/velociraptor/releases",
-      "license": "AGPLv3",
-      "sha256": "TODO_VERIFY_ON_DOWNLOAD",
-      "notes": "A generic upstream binary is not an offline collector. Generate the selected profile first and lock its artifact hash before SSM collection."
+      "version": "v0.77.2",
+      "url": "https://github.com/Velocidex/velociraptor/releases/download/v0.77.2/velociraptor-v0.77.2-linux-amd64",
+      "filename": "velociraptor",
+      "sha256": "6c4c23c466d892788ff56ddcd3a31f844e4c0d797ade454c5e2625eb9e427077",
+      "hash_source": "GitHub release digest",
+      "license": "AGPL-3.0"
     },
     "hayabusa": {
-      "version": "2.18.x",
-      "source": "https://github.com/Yamato-Security/hayabusa/releases",
-      "license": "AGPLv3",
-      "sha256": "TODO_VERIFY"
+      "status": "deferred-outside-linux-baseline",
+      "note": "Not installed by cloud-lab bootstrap. Select/pin separately before adding this optional tool."
     },
     "pysigma": {
-      "version": "0.11.x",
-      "license": "LGPL-2.1",
-      "pip": "pySigma>=0.11,<0.12"
+      "status": "deferred-outside-linux-baseline",
+      "note": "Not installed by cloud-lab bootstrap. Select/pin separately before adding this optional tool."
     },
     "sigma_rules": {
-      "version": "r2024-09-xx",
-      "source": "https://github.com/SigmaHQ/sigma",
-      "license": "DRL-1.1",
-      "commit": "TODO_PIN_COMMIT"
+      "status": "deferred-outside-linux-baseline",
+      "note": "Not installed by cloud-lab bootstrap. Select/pin separately before adding this optional tool."
     }
   },
   "attack_tools": {
     "dvwa": {
-      "version": "master",
-      "commit": "TODO_PIN_COMMIT",
-      "source": "https://github.com/digininja/DVWA",
-      "license": "GPLv3"
+      "version": "2.5",
+      "commit": "a96943dc1f52f390ee5df72144660636c4b7dd06",
+      "url": "https://codeload.github.com/digininja/DVWA/tar.gz/a96943dc1f52f390ee5df72144660636c4b7dd06",
+      "filename": "dvwa.tar.gz",
+      "license": "GPL-3.0",
+      "sha256": "be73e29b187bd9ceadbe7428217a0547687f38557412e13fb32972c40cb4fb35",
+      "hash_source": "SHA256 computed over HTTPS download; not an independent signature"
     },
     "cloudgoat": {
-      "version": "master",
-      "commit": "TODO_PIN_COMMIT",
-      "source": "https://github.com/RhinoSecurityLabs/cloudgoat",
+      "version": "v2.5.0",
+      "commit": "abf1ba8f5e47d7ced750fdfa025d51c99f1a43ed",
+      "url": "https://codeload.github.com/RhinoSecurityLabs/cloudgoat/tar.gz/abf1ba8f5e47d7ced750fdfa025d51c99f1a43ed",
+      "filename": "cloudgoat.tar.gz",
       "license": "BSD-3-Clause",
-      "scenario": "ec2_ssrf"
+      "sha256": "2438421afc1936460ded31f8a989a96e23dc8cc3b5594b213fae468a2b5745eb",
+      "hash_source": "SHA256 computed over HTTPS download; not an independent signature",
+      "status": "source-pinned-not-deployed"
     }
   },
   "python": {
@@ -119,5 +122,5 @@
       "jsonschema": ">=4.23,<5"
     }
   },
-  "status": "partial-local-validation"
+  "status": "local-validated-awaiting-aws-inputs"
 }

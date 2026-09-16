@@ -1,133 +1,68 @@
-"""ea-verify-finalize: staging 객체 SHA-256 검증 → manifest 생성 → final 복사."""
-
-import hashlib
+"""Bounded, streaming finalization; incomplete collection never becomes READY."""
 import json
-import logging
 import os
 from datetime import datetime, timezone
-
 import boto3
+from common.evidence import copy_verified
 
-logger = logging.getLogger("ea")
-logger.setLevel(logging.INFO)
-
-REGION = os.environ.get("REGION", "ap-northeast-2")
-STAGING_BUCKET = os.environ.get("STAGING_BUCKET", "")
-FINAL_BUCKET = os.environ.get("FINAL_BUCKET", "")
-CASES_TABLE = os.environ.get("CASES_TABLE", "ea-cases")
-
+REGION = os.environ.get('REGION','ap-northeast-2')
+STAGING_BUCKET = os.environ.get('STAGING_BUCKET','')
+FINAL_BUCKET = os.environ.get('FINAL_BUCKET','')
+CASES_TABLE = os.environ.get('CASES_TABLE','ea-cases')
 
 def lambda_handler(event, context):
-    case_id = event["case_id"]
-    collection_results = event.get("collection_results", [])
-
-    logger.info("Verifying and finalizing case %s", case_id)
-
-    s3 = boto3.client("s3", region_name=REGION)
-    prefix = f"cases/{case_id}/"
-
-    staging_objects = []
-    paginator = s3.get_paginator("list_objects_v2")
-    for page in paginator.paginate(Bucket=STAGING_BUCKET, Prefix=prefix):
-        for obj in page.get("Contents", []):
-            staging_objects.append(obj)
-
-    jobs = []
-
-    missing = []
-    for key in ('metadata_error', 'collection_error'):
-        if event.get(key):
-            missing.append({'stage': key, 'error': event[key]})
-    for result in collection_results:
-        if result.get('error') or result.get('errors') or result.get('status') in {'PARTIAL', 'FAILED', 'FAIL'}:
-            missing.append({'stage': 'collection', 'result': result})
-    if not collection_results:
-        missing.append({'stage': 'collection', 'error': 'No collection completion results'})
-    if event.get('metadata', {}).get('errors'):
-        missing.append({'stage': 'metadata', 'errors': event['metadata']['errors']})
-    total_size = 0
-
-    for obj in staging_objects:
-        key = obj["Key"]
-        size = obj["Size"]
-        total_size += size
-
-        try:
-            resp = s3.get_object(Bucket=STAGING_BUCKET, Key=key)
-            body = resp["Body"].read()
-            sha256 = hashlib.sha256(body).hexdigest()
-
-            s3.put_object(
-                Bucket=FINAL_BUCKET,
-                Key=key,
-                Body=body,
-                ContentType=resp.get("ContentType", "application/octet-stream"),
-                ServerSideEncryption="aws:kms",
-        SSEKMSKeyId=os.environ["EVIDENCE_KMS_KEY_ARN"],
-                Metadata={"sha256": sha256},
-            )
-
-            jobs.append({
-                "key": key,
-                "size_bytes": size,
-                "sha256": sha256,
-                "status": "verified",
-            })
-        except Exception as e:
-            logger.warning("Failed to verify/copy %s: %s", key, e)
-            missing.append({"key": key, "error": str(e)})
-
-    if not staging_objects:
-        integrity = "FAIL"
-    elif missing:
-        integrity = "PARTIAL"
-    else:
-        integrity = "PASS"
-
-    manifest = {
-        "schema_version": "1.0",
-        "case_id": case_id,
-        "finalized_at": datetime.now(timezone.utc).isoformat(),
-        "integrity": integrity,
-        "total_objects": len(staging_objects),
-        "verified_objects": len(jobs),
-        "missing_objects": len(missing),
-        "total_size_bytes": total_size,
-        "jobs": jobs,
-        "missing": missing,
-        "collection_results": collection_results,
-    }
-
-    manifest_key = f"cases/{case_id}/manifest.json"
-    s3.put_object(
-        Bucket=FINAL_BUCKET,
-        Key=manifest_key,
-        Body=json.dumps(manifest, ensure_ascii=False, default=str).encode("utf-8"),
-        ContentType="application/json",
-        ServerSideEncryption="aws:kms",
-        SSEKMSKeyId=os.environ["EVIDENCE_KMS_KEY_ARN"],
-    )
-
-    ddb = boto3.resource("dynamodb", region_name=REGION)
-    table = ddb.Table(CASES_TABLE)
-    final_status = "READY" if integrity == "PASS" else ("PARTIAL" if integrity == "PARTIAL" else "FAILED")
-
-    table.update_item(
-        Key={"case_id": case_id},
-        UpdateExpression="SET #s = :status, manifest_key = :mk, updated_at = :now, jobs = :jobs",
-        ExpressionAttributeNames={"#s": "status"},
-        ExpressionAttributeValues={
-            ":status": final_status,
-            ":mk": manifest_key,
-            ":now": datetime.now(timezone.utc).isoformat(),
-            ":jobs": jobs,
-        },
-    )
-
-    logger.info("Case %s finalized: %s (%d objects, %d missing)", case_id, integrity, len(jobs), len(missing))
-
-    return {
-        "integrity": integrity,
-        "manifest_key": manifest_key,
-        "missing": missing,
-    }
+    case_id = event['case_id']
+    if not __import__('re').fullmatch(r'CASE-[A-Za-z0-9_-]{1,59}',case_id):
+        raise ValueError('Invalid case ID')
+    s3 = boto3.client('s3',region_name=REGION)
+    results = event.get('collection_results',[])
+    missing, jobs = [], []
+    for stage in ('metadata_error','collection_error'):
+        if event.get(stage):
+            missing.append({'key':stage,'error':str(event[stage])})
+    if not results:
+        missing.append({'key':'collection','error':'No collection completion results'})
+    for i,result in enumerate(results):
+        if result.get('error') or result.get('errors') or (result.get('status') not in ('SUCCESS','Success') and not result.get('skipped')):
+            missing.append({'key':f'collection/{i}','error':json.dumps(result,default=str)})
+    if event.get('metadata',{}).get('errors'):
+        missing.append({'key':'metadata','error':str(event['metadata']['errors'])})
+    maximum = int(os.environ.get('VERIFY_MAX_BYTES','67108864'))
+    objects, total = 0, 0
+    for page in s3.get_paginator('list_objects_v2').paginate(Bucket=STAGING_BUCKET,Prefix=f'cases/{case_id}/'):
+        for obj in page.get('Contents',[]):
+            key = obj['Key']
+            objects += 1
+            total += obj['Size']
+            try:
+                if total > 256*1024*1024:
+                    raise ValueError('Case exceeds current verification budget; preserve staging and split the collection scope before retry')
+                if context is not None and context.get_remaining_time_in_millis() < 15000:
+                    raise ValueError('Verification time budget exhausted')
+                verified=copy_verified(s3,STAGING_BUCKET,FINAL_BUCKET,key,
+                    os.environ['EVIDENCE_KMS_KEY_ARN'],case_id,maximum)
+                producer=next((r for r in results if r.get('output_key')==key),None)
+                if producer:
+                    if producer.get('producer_sha256')!=verified['sha256'] or producer.get('version_id')!=verified['source']['version_id']:
+                        raise ValueError('Host-produced digest/version does not match evidence')
+                    verified['producer_sha256']=producer['producer_sha256']
+                jobs.append(verified)
+            except Exception as exc:
+                missing.append({'key':key,'error':str(exc)})
+    integrity = 'FAIL' if not jobs else 'PARTIAL' if missing else 'PASS'
+    manifest = {'schema_version':'1.1','case_id':case_id,
+        'finalized_at':datetime.now(timezone.utc).isoformat(), 'integrity':integrity,
+        'collection_profile':'linux-triage-v1/aws-case-v1','verifier_version':'1.1',
+        'target':event.get('target',{}),'trigger':event.get('trigger',{}),
+        'total_objects':objects,'verified_objects':len(jobs),'missing_objects':len(missing),
+        'total_size_bytes':total,'jobs':jobs,'missing':missing,'collection_results':results}
+    key = f'cases/{case_id}/manifest.json'
+    written = s3.put_object(Bucket=FINAL_BUCKET,Key=key,
+        Body=json.dumps(manifest,ensure_ascii=False,default=str).encode(),ContentType='application/json',
+        ServerSideEncryption='aws:kms',SSEKMSKeyId=os.environ['EVIDENCE_KMS_KEY_ARN'])
+    boto3.resource('dynamodb',region_name=REGION).Table(CASES_TABLE).update_item(
+        Key={'case_id':case_id},UpdateExpression='SET #s=:s, manifest_key=:k, manifest_version=:v, updated_at=:t',
+        ExpressionAttributeNames={'#s':'status'},ExpressionAttributeValues={
+            ':s':{'PASS':'READY','PARTIAL':'PARTIAL','FAIL':'FAILED'}[integrity],
+            ':k':key,':v':written.get('VersionId',''),':t':manifest['finalized_at']})
+    return {'integrity':integrity,'manifest_key':key,'missing':missing}

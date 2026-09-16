@@ -48,3 +48,8 @@ infra/foundation/backend.tf
 tfplan
 *.tfplan
 !results/local-validation.json
+!results/linux-validation.json
+
+!results/scenario-review.json
+!results/scenario-fix-validation.json
+!results/scenario-service-validation.json

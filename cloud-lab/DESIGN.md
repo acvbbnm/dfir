@@ -1,5 +1,10 @@
 # AWS 관제·포렌식 자동화 — 전체 프로젝트 설계
 
+> 2026-09-16 실행 기준: [시나리오 v1.1](scenarios/SCENARIO_LIBRARY.md)·[수정/지원 범위](results/SCENARIO_FIXES.md). 아래의 SQS·landing 복제·snapshot copy·host 없는 자동 사건·고급 상관·대응 실행기는 후속 목표이며 현재 구현 완료를 뜻하지 않는다. S0~S6는 준비 검사, N/W/H/C/I/D/E/X/K는 본 실험 ID다.
+
+
+> **2026-09-15 구현/검증 대조:** 이 문서의 장기 목표와 과거 후보 구성을 현재 완료 상태로 해석하지 않는다. 현재 기준선은 [DEPLOYMENT.md](DEPLOYMENT.md), 수행된 검사는 [LOCAL_VALIDATION.md](results/LOCAL_VALIDATION.md)다. ModSecurity 기본·내부 ALB·선택 test-a 실행기·초기 Atlas 오프라인 import까지 준비했으며 AWS 수락/전체 분석·대응은 미완료다.
+
 > 2026-09-11 구현 보완: [로컬 검증 기록](results/LOCAL_VALIDATION.md)과 [실행·잔여 작업](LOCAL_DEVELOPMENT.md)을 확인한다. 현재 operate 모드는 SSM 계열 3개 + 일반 API 6개로 interface endpoint 총 9개다. 이전 2~3개 기준 비용표는 현재 IaC의 확정 견적이 아니며 실제 단가·실행 시간으로 재산정해야 한다. AWS 배포는 아직 수행하지 않았다.
 
 
@@ -49,7 +54,7 @@
 ~~~mermaid
 flowchart TB
     U["정상 사용자 / 공격 실행기"] -->|"HTTPS"| ALB["Internal ALB"]
-    WAF["AWS WAF"] -. "정책 연결" .-> ALB
+    WAF["AWS WAF · 선택 비활성"] -. "정책 연결" .-> ALB
     ALB --> WEB["DMZ: Suricata inline · Nginx"]
     WEB --> APP["APP: WordPress / 분리한 실험 앱"]
     APP -->|"TLS"| DB["RDS MySQL"]
@@ -59,7 +64,7 @@ flowchart TB
     DB --> CW["CloudWatch Logs"]
     WEB -. "EVE·OS·웹" .-> ES["Elastic SIEM"]
     APP -. "앱 감사·Defend·OS" .-> ES
-    S3 -->|"SQS·수집기"| ES
+    S3 -->|"polling 수집기 (SQS 후속)"| ES
     CW --> ES
     ES --> CASE["Security: 사건·수집·대응"]
     CASE --> EVID["증거 S3 · 구성 이력<br/>선택 EBS/RDS snapshot copy"]
@@ -88,7 +93,7 @@ HTTPS는 내부 DNS·인증서 신뢰까지 구현한다. ALB 뒤 실험 HTTP �
 
 | 통제 | 검사/허용 조건 | 실행·검증 |
 |---|---|---|
-| AWS WAF | CRS·KnownBadInputs·SQLi, Host/경로/메서드·로그인 rate | Count 기준선→선정 Block, backend 미도달 확인 |
+| ModSecurity/CRS 기본 | CRS + Nginx Host/경로/로그인 rate | DetectionOnly→On, backend 미도달 대조; AWS WAF는 선택 비교 |
 | DMZ/SG | 계층별 source SG와 필요한 포트만 허용 | 정상 흐름 성공·우회 직접 연결 거부 |
 | Suricata IPS | WEB의 ALB HTTP 양방향을 NFQUEUE로 전달 | alert→선정 drop, EVE verdict·정상 서비스·센서 장애 시험 |
 | endpoint | 웹 계보·파일·cron/systemd·접속 변화 | Agent/Defend·auditd, 실제 가용 기능과 정상 대조군 |
@@ -103,7 +108,7 @@ Suricata 기본안은 웹 경로의 host inline IPS이며 VPC 전체 경계 IPS�
 
 ### 5.1 수집 계약
 
-WAF/ALB/Flow와 CloudTrail은 원본 S3를 수집하고 SQS·중복 처리·실패 큐를 둔다. RDS 엔진 로그와 Resolver DNS는 CloudWatch Logs에서 읽는다. WEB/APP의 HTTP·앱 감사·Suricata EVE·OS/Defend 이벤트는 Agent로 전달하고 조사용 원본을 별도로 보존한다.
+WAF/ALB/Flow와 CloudTrail은 원본 S3를 수집하고 현재 polling·중복 방지·실패 시 커서 유지로 처리한다(SQS 전달은 후속 목표). RDS 엔진 로그와 Resolver DNS는 CloudWatch Logs에서 읽는다. WEB/APP의 HTTP·앱 감사·Suricata EVE·OS/Defend 이벤트는 Agent로 전달하고 조사용 원본을 별도로 보존한다.
 
 CloudTrail management는 IAM/STS·Secrets·SG·RDS API를, 선택한 S3 data event는 객체 접근을 다룬다. SQL은 RDS 엔진 로그, OS 실행은 endpoint 로그가 담당한다. 소스별 미수집 범위·전송 지연·rotation을 표시한다.
 
@@ -335,7 +340,7 @@ AI는 검색·정규화된 사건 증거 묶음을 읽고 다음을 작성한다
 
 ## 10. 공격·방어·관제 검증
 
-S0 정상 서비스, S1 실제 SQLi와 WAF 차단, S2 웹 명령/파일 실행, S3 IPS 차단 대조, S4 AWS SSRF·role·S3 접근, S5 Secrets/SG/DB 권한, S6 수집·격리·권한 제한·복구를 수행한다. 정확한 조건과 로그는 BUILD_AND_ATTACK.md 섹션 7에 정의한다.
+S0~S6는 준비 검사이며 실제 공격 검증은 N0/W1~W5/H1~H3/C1~C3/I1~I4/D1~D4/E1~E3/X1~X2/K1~K11 카탈로그를 따른다. 이전 번호의 의미를 새 실행 기록에 사용하지 않는다.
 
 실제 성공과 방어 차단의 대조 결과·정상 대조군·정책 revision을 함께 기록한다. CloudGoat 경로와 웹 침해가 실제로 연결되지 않으면 별도 사건으로 평가한다. 실행 정답은 AI에 주지 않는다.
 
@@ -377,7 +382,7 @@ F1 중복 경보/재시작, F2 SSM·로그 수집 부분 실패, F3 hash/사건 
 
 A0~A7의 구체 작업은 BUILD_AND_ATTACK.md의 B00~B14를 따른다. 기존 22~35일은 단순 초안 추정이며 실제 웹/IPS/권한 실험 구현을 분해한 뒤 다시 산정한다. 클라우드 compute는 누적 100시간을 계획하고 로컬 개발·분석 기간과 분리한다.
 
-첫 구축 목표는 **정상 서비스·모든 필수 로그 → 실제 공격/차단 결과 → SIEM 경보**다. 이후 첫 포렌식 연결은 **S4의 AWS 객체 접근 사건 → 원본 CloudTrail·권한·객체/version 보존 → Atlas 시간축**으로 만들고 S2 Linux host 증거를 추가한다.
+첫 구축 목표는 **정상 서비스·모든 필수 로그 → 실제 공격/차단 결과 → SIEM 경보**다. 이후 첫 포렌식 연결은 **D1의 AWS 객체 접근 사건 → 원본 CloudTrail·권한·객체/version 보존 → Atlas 시간축**으로 만들고 W2/H2 Linux host 증거를 추가한다.
 
 ## 12. 코드와 문서 배치
 
@@ -420,29 +425,14 @@ evidence-atlas 루트 README의 AWS 체크리스트를 전체 진행 상황의 �
 
 ### 13.1 1개월 보관·핵심 서버 100시간 실행
 
-2026-09-09 확인한 서울 리전 온디맨드 단가를 사용한다. 할인·무료 티어·크레딧 차감은 계산에서 제외한다. 기본 서버는 Linux이며 RDS MySQL Single-AZ를 별도로 계산한다. 계산상 한 달은 730시간이다.
+2026-09-09 개략 견적은 과거 기록이다. 실제 배포 전 최신 서울 리전 온디맨드 단가를 확인한다. 할인·무료 티어·크레딧 차감은 계산에서 제외한다. 기본 서버는 Linux이며 RDS MySQL Single-AZ를 별도로 계산한다. 계산상 한 달은 730시간이다.
 
-| 항목 | 가정 | 추정 USD |
-|---|---|---:|
-| 핵심 EC2 3대 + RDS | WEB .052 + APP .052 + SOC .208 + RDS .025, 각 100시간 | 33.70 |
-| 기본 EBS | gp3 150GB × .0912/GB-month | 13.68 |
-| RDS 스토리지 | gp3 20GB × .131/GB-month | 2.62 |
-| 내부 ALB | .0225/hour × 730 | 16.43 |
-| ALB 처리 | 평균 1 LCU × .008 × 730 | 5.84 |
-| NAT Gateway | .059/hour × 730 | 43.07 |
-| NAT 공인 IPv4 | 1개 × .005/hour × 730 | 3.65 |
-| SSM interface endpoints | 2개 × 1 AZ × .013/hour × 730 | 18.98 |
-| WAF | Web ACL 1개, 표준 managed group·소수 규칙, 월 100만 요청 이내 | 7~10 |
-| S3 로그·증거 및 요청 | 소규모 자료, 보존 기간·버전 수 제한 | 10~20 예비비 |
-| 임시 VM·작업 볼륨·스냅샷 | 실행기 약 20시간, Linux 작업 VM·CloudGoat 단기 인스턴스, 소수 스냅샷 | 10~20 예비비 |
-| 자동화·상태·KMS·CloudWatch | 소규모 사건·상태 전이·API 호출 | 3~10 예비비 |
-| NAT/endpoint 처리·기타 전송 | 패키지 다운로드와 소량 API 통신 | 5~10 예비비 |
-| 교차 계정 증거·감사 보관 | 로그 복제, 독립 snapshot copy·KMS·staging 추가 | 10~25 예비비 |
-| **계획 예산** | 추가 변동 여유 포함 | **약 200~250** |
+현재 비용 산정은 모드별 실제 자원으로 다시 계산한다. setup은 NAT1+공인IPv4, operate는 NAT 없이 interface endpoint9개×1AZ, idle은 NAT/interface endpoint0개다. 내부 ALB·EBS·RDS 저장/백업·KMS(RDS 전용 키 포함)·S3/CloudTrail data events·선택 TEST EC2의 시간/건수는 별도다. 이 문서의 과거 단가로 새 합계를 확정하지 않는다. 배포 직전 선택 리전·서비스 수량·실행 시간으로 다시 견적하고 $300 목표와 대조한다.
+
 
 **300달러 이하를 보장하는 견적은 아니다.** 자료량·CPU 사용·배포 기간에 따라 달라지고, 세금·유료 XDR 라이선스·도메인·유료 모델 API는 포함하지 않는다. 데이터 전송·S3·스냅샷 항목은 정액 요금이 아닌 작업 범위에 대한 예비비다.
 
-이전 개략 견적보다 SSM 전용 연결·임시 분석 작업과 교차 계정 증거 보관을 명시적으로 추가했다. 핵심 EC2·RDS를 730시간 상시 실행하면 100시간 대비 compute만 약 $212가 더해진다. 계획 예산은 이 상시 운영을 포함하지 않는다. RDS 중지 후 7일 자동 재시작·burst CPU·backup·Secrets 비용도 추적한다. 교차 계정 크레딧 적용과 실제 보관량은 배포 전 확인한다.
+이전 개략 견적보다 SSM 전용 연결·임시 분석 작업과 교차 계정 증거 보관을 명시적으로 추가했다. 핵심 EC2·RDS 상시 실행 비용은 100시간 실습과 별도로 계산한다. 계획 예산은 이 상시 운영을 포함하지 않는다. RDS 중지 후 7일 자동 재시작·burst CPU·backup·Secrets 비용도 추적한다. 교차 계정 크레딧 적용과 실제 보관량은 배포 전 확인한다.
 
 단가 근거: [EC2·EBS·NAT 서울 요금표](https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/ap-northeast-2/index.csv), [ALB 서울 요금표](https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AWSELB/current/ap-northeast-2/index.csv), [VPC 서울 요금표](https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonVPC/current/ap-northeast-2/index.json), [WAF 요금](https://aws.amazon.com/waf/pricing/), [RDS 서울 요금표](https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonRDS/current/ap-northeast-2/index.csv).
 

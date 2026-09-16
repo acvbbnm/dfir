@@ -110,6 +110,14 @@ if [ ! -f /etc/kibana/kibana.keystore ]; then /usr/share/kibana/bin/kibana-keyst
 /usr/share/kibana/bin/kibana-keystore add elasticsearch.serviceAccountToken --stdin --force --allow-root < /root/ea-credentials/kibana-service-token
 chown root:kibana /etc/kibana/kibana.keystore
 chmod 0640 /etc/kibana/kibana.keystore
+for key in xpack.encryptedSavedObjects.encryptionKey xpack.security.encryptionKey xpack.reporting.encryptionKey; do
+  if ! /usr/share/kibana/bin/kibana-keystore list --allow-root | grep -Fxq "$key"; then
+    python3 -c 'import secrets; print(secrets.token_hex(32))' |
+      /usr/share/kibana/bin/kibana-keystore add "$key" --stdin --force --allow-root
+  fi
+done
+chown root:kibana /etc/kibana/kibana.keystore
+chmod 0640 /etc/kibana/kibana.keystore
 systemctl enable kibana
 systemctl restart kibana
 curl --fail --silent --show-error --retry 30 --retry-delay 5 --retry-all-errors \

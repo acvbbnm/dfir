@@ -1,5 +1,10 @@
 # AWS 서비스·방어·관제 인프라와 구축·공격 계획
 
+> 2026-09-16 실행 기준: [시나리오 v1.1](scenarios/SCENARIO_LIBRARY.md)·[수정/지원 범위](results/SCENARIO_FIXES.md). 아래의 SQS·landing 복제·snapshot copy·host 없는 자동 사건·고급 상관·대응 실행기는 후속 목표이며 현재 구현 완료를 뜻하지 않는다. S0~S6는 준비 검사, N/W/H/C/I/D/E/X/K는 본 실험 ID다.
+
+
+> **2026-09-15 구현/검증 대조:** 이 문서의 장기 목표와 과거 후보 구성을 현재 완료 상태로 해석하지 않는다. 현재 기준선은 [DEPLOYMENT.md](DEPLOYMENT.md), 수행된 검사는 [LOCAL_VALIDATION.md](results/LOCAL_VALIDATION.md)다. ModSecurity 기본·내부 ALB·선택 test-a 실행기·초기 Atlas 오프라인 import까지 준비했으며 AWS 수락/전체 분석·대응은 미완료다.
+
 > 2026-09-11 구현 보완: [로컬 검증 기록](results/LOCAL_VALIDATION.md)과 [실행·잔여 작업](LOCAL_DEVELOPMENT.md)을 확인한다. 현재 operate 모드는 SSM 계열 3개 + 일반 API 6개로 interface endpoint 총 9개다. 이전 2~3개 기준 비용표는 현재 IaC의 확정 견적이 아니며 실제 단가·실행 시간으로 재산정해야 한다. AWS 배포는 아직 수행하지 않았다.
 
 
@@ -76,11 +81,11 @@ flowchart TB
 |---|---|---|
 | egress-a | 10.60.0.0/24 | NAT 1개와 IGW, 서버 배치 없음 |
 | ingress-a / ingress-c | 10.60.10.0/24 · 10.60.11.0/24 | 내부 ALB, 서로 다른 AZ |
-| dmz-web-a | 10.60.20.0/24 | WEB, 공인 IP 없음, ALB SG의 요청만 수신 |
-| app-a | 10.60.30.0/24 | APP, WEB SG에서만 업무 포트 수신 |
-| db-a / db-c | 10.60.40.0/24 · 10.60.41.0/24 | RDS subnet group, IGW/NAT 기본 경로 없음 |
-| management-a | 10.60.50.0/24 | SOC, SSM endpoints |
-| test-a | 10.60.60.0/24 | 요청 실행기, 직접 APP·RDS 접근 거부 |
+| dmz-web-a | 10.60.2.0/24 | WEB, 공인 IP 없음, ALB SG의 요청만 수신 |
+| app-a | 10.60.3.0/24 | APP, WEB SG에서만 업무 포트 수신 |
+| db-a / db-c | 10.60.4.0/24 · 10.60.14.0/24 | RDS subnet group, IGW/NAT 기본 경로 없음 |
+| management-a | 10.60.5.0/24 | SOC, SSM endpoints |
+| test-a | 10.60.9.0/24 | 요청 실행기, 직접 APP·RDS 접근 거부 |
 | forensic-a | 10.60.70.0/24 | 임시 분석, 기본 업무 접근 거부 |
 | scenario-app-a | 10.60.80.0/24 | CloudGoat 단기 실험 자원, 전용 SG·role |
 
@@ -95,7 +100,7 @@ ALB에서 TLS를 종료하고 WEB/APP 간 실험 HTTP를 검사한다. 이 구�
 | ID | 출발 → 도착 | 허용 | 그 외 동작 |
 |---|---|---|---|
 | N01 | test SG → ALB SG | 443 | test → APP/RDS/SOC 직접 연결 거부 |
-| N02 | ALB SG → WEB SG | 8080, /healthz 포함 | WEB의 임의 출처 8080 거부 |
+| N02 | ALB SG → WEB SG | 8080, /health 포함 | WEB의 임의 출처 8080 거부 |
 | N03 | WEB SG → APP SG | 8080 | WEB → RDS 3306 거부 |
 | N04 | APP SG → RDS SG | 3306 | 외부·WEB·test에서 DB 접근 거부 |
 | N05 | WEB/APP Agent → SOC | TLS 9200·8220 | Kibana 5601 직접 공개 없음 |
@@ -128,7 +133,7 @@ WEB·APP·SOC 설치용 인터넷 HTTPS는 NAT를 통해 허용하고 실행 모
 - 초기에는 선택 룰을 alert로 평가한다. HTTP 공격 패턴·비정상 프로토콜 등 재현 검증된 소수 룰만 drop으로 승격한다. 룰셋 전체를 일괄 drop으로 바꾸지 않는다.
 - 로그는 EVE JSON의 timestamp, flow_id, 5-tuple, signature_id/rev, action, HTTP 메타데이터, stats를 보존한다.
 - 이 센서가 보는 네트워크 source는 ALB일 수 있다. ALB 주소를 공격자 주소로 차단하지 않고 WAF·웹 로그의 client 정보와 신뢰 경계를 함께 확인한다.
-- 차단 검증 모드는 web queue에 fail-closed, SSM/수집 통신은 queue 대상에서 제외한다. 센서 중지 시 웹 서비스 실패·경보·관리 복구를 시험한다. fail-open 비교 실험은 명시한 별도 모드로 기록한다.
+- 현재 bootstrap은 WEB queue에 `--queue-bypass`를 사용한 fail-open이다. 센서 중단 시 웹 통과와 수집 경보를 별도 검증한다. fail-closed는 후속 선택 모드이며 현재 구현/검증 완료로 표시하지 않는다. SSM/수집 통신은 queue 대상에서 제외한다.
 - 검사 범위는 ALB↔WEB 웹 경로다. APP→RDS의 TLS 내용, 다른 ENI, AWS API 호출 전체를 검사하는 VPC 경계 IPS로 주장하지 않는다.
 - 전용 네트워크 방화벽 비교 단계에서는 AWS Network Firewall을 단기 생성하고 별도 inspection subnet·대칭 왕복 route를 구성한다. 기본 예산에 상시 endpoint 비용을 넣지 않는다. NAT·VPC local 우회 경로가 검사되는지 먼저 검증한다.
 
@@ -222,15 +227,15 @@ ES는 우선 7일·디스크 한도, 운영 로그 원본은 30일·용량 상�
 
 | ID | 수행과 조건 | 성공/차단 판정 | 남겨야 할 로그 |
 |---|---|---|---|
-| S0 | 30분간 회원 열람·로그인·글·업로드·자료 배치, 정상 관리자 작업 | 기능 결과·DB 행·S3 객체와 로그 도착 일치 | 전 계층 기준선 |
-| S1 | DVWA SQLi. Count 모드에서 실제 추가 테스트 행 조회, WAF Block 후 같은 의미의 요청 반복 | DB/HTTP 결과로 취약점 성공, 방어 후 미도달/미조회 확인 | WAF·ALB·WEB·APP·RDS |
-| S2 | DVWA 명령 실행/업로드 취약점으로 실험 파일·프로세스 생성 | 응답·실제 파일/hash·프로세스로 실행 확인 | APP audit/Defend·웹·IPS |
-| S3 | S1/S2에서 검증한 IPS signature를 drop으로 바꾸고 WAF Count 상태에서 재시험 | IPS verdict와 backend 미실행, 정상 사용자 통과 | EVE·웹·단말, 센서 중단 시험 |
-| S4 | CloudGoat 전용 SSRF·IMDS·제한 role 오용으로 실험 S3 객체 접근, 보안 설정으로 복원 후 반복 | 실제 대상 객체 접근·거부를 대조, metadata 요청 자체가 CloudTrail에 있다고 가정하지 않음 | 앱·CloudTrail S3 data·IAM 설정·객체 |
-| S5 | 제한 실험 역할의 잘못된 secret/SG 권한을 성공·거부 비교, DB 접근은 별도 실제 질의로 검증 | secret 열람·SG 변경·DB 실행 각각 판정 | CloudTrail·전후 정책·RDS·Flow |
-| S6 | 선정 high 사건으로 수집·EC2 격리·IAM 제한·복구 | 증거 무결성·실제 통신/권한 차단·정상 재개 | 사건 manifest·SSM·CloudTrail·재검증 |
+| S0 | 정상 GET 2회 | 응답/원문 대조 | 본 공격은 시나리오 라이브러리의 별도 ID 사용 |
+| S1 | 허용 경로 3회 조회 | 범위/요청 수 제한 | 본 공격은 시나리오 라이브러리의 별도 ID 사용 |
+| S2 | 존재하지 않는 계정 로그인 실패12회 | 로그인 실패 원문; 계정 탈취 아님 | 본 공격은 시나리오 라이브러리의 별도 ID 사용 |
+| S3 | SQLi 형태 WAF marker | DetectionOnly/On 대조; DB 유출 아님 | 본 공격은 시나리오 라이브러리의 별도 ID 사용 |
+| S4 | 수동 endpoint marker/수집 | SSM·파일·프로세스·원본 ZIP | 본 공격은 시나리오 라이브러리의 별도 ID 사용 |
+| S5 | 수동 제한 IAM 권한 거부 | 정확한 API/자원·AccessDenied | 본 공격은 시나리오 라이브러리의 별도 ID 사용 |
+| S6 | 수동 사건 수집 파이프라인 수락 | manifest/hash/partial; 자동 격리 아님 | 본 공격은 시나리오 라이브러리의 별도 ID 사용 |
 
-S1~S3는 관찰/차단 대조 실험이며 정책 revision과 초기화된 데이터 상태를 함께 기록한다. 앞단에서 차단된 행위의 endpoint 로그가 없는 것은 기대 결과일 수 있다. 없다는 사실만으로 수집 완전성을 판단하지 않고 정상 canary를 같이 확인한다.
+W1/W2와 IPS 변형은 관찰/차단 대조 실험이며 정책 revision과 초기화된 데이터 상태를 함께 기록한다. 앞단에서 차단된 행위의 endpoint 로그가 없는 것은 기대 결과일 수 있다. 없다는 사실만으로 수집 완전성을 판단하지 않고 정상 canary를 같이 확인한다.
 
 정답 기록은 run ID, 허용된 대상, 사전 상태, 요청·실제 응답/변화, 시각, 정책·도구 버전으로 구성한다. AI 입력에는 정답을 넣지 않는다. 원본 증거·인증정보가 포함된 출력은 공개 Git에 저장하지 않고 공유 보고서용 파생본을 별도로 만든다.
 
@@ -245,13 +250,13 @@ S1~S3는 관찰/차단 대조 실험이며 정책 revision과 초기화된 데�
 | B04 | WEB/APP 설치·WordPress seed·역할·업로드 정책·배치 | 로그인·글·업로드·S3 작업 실제 결과 |
 | B05 | SOC·Fleet·AWS/S3/SQS/CloudWatch 수집·인덱스/retention | 각 source 원본과 ES 결과 대조·재처리 중복 검사 |
 | B06 | WAF·Suricata NFQUEUE·Defend·auditd·앱 감사 설정 | 정책 hash, queue 양방향, 정상 통과·canary |
-| B07 | S0 정상 부하·관리 작업·수집 장애 시험 | 정상 기준선·지연·오탐·용량·센서 복구 |
-| B08 | DVWA 분리 배치·DB 계정·초기화·S1/S2 | 취약점 실제 성공의 증거, 원본 로그 보존 |
-| B09 | WAF Block·IPS drop 대조 S1/S3 | 어디에서 막혔는지·backend 결과·정상 서비스 영향 |
-| B10 | CloudGoat 필요한 앱/정책만 이식·S4/S5 | 실제 AWS API 성공/거부와 역할·자원·로그 대응 |
+| B07 | N0 정상 부하·관리 작업·수집 장애 시험 | 정상 기준선·지연·오탐·용량·센서 복구 |
+| B08 | DVWA 분리 배치·DB 계정·초기화·W1/W2 | 취약점 실제 성공의 증거, 원본 로그 보존 |
+| B09 | WAF Block·IPS drop 대조 W1/IPS | 어디에서 막혔는지·backend 결과·정상 서비스 영향 |
+| B10 | CloudGoat 필요한 앱/정책만 이식·C1/C2/C3 | 실제 AWS API 성공/거부와 역할·자원·로그 대응 |
 | B11 | D01~D08 실제 필드로 규칙·대시보드·경보 생성 | 정답 대비 TP/FP/FN·단계별 지연 |
 | B12 | 경보→사건→AWS 로그·선택 EC2/RDS 증거 수집 | 중복·부분 실패·hash·원본 추적 |
-| B13 | S6 격리·권한 제한·복구 후 Atlas 연동 | 실제 차단·회복, 시간축·관계 근거·AI 검토 |
+| B13 | K3 격리·권한 제한·복구 후 Atlas 연동 | 실제 차단·회복, 시간축·관계 근거·AI 검토 |
 | B14 | 원본 내보내기·재열람·AWS 자원 정리 | source hash, 사건 결과표, 잔여 과금 목록 |
 
 B03/B04의 서비스 로그를 원본에 남기고 B05에서 SIEM 전달까지 대조한다. 실습 공격은 B05~B07의 수집 확인 후 시작한다. Atlas의 기존 Windows 통합 오류 보완은 별도 코드 작업이며 AWS 인프라 설계·구축의 선행 완료 조건으로 두지 않는다.

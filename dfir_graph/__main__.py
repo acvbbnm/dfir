@@ -16,6 +16,9 @@ def main(argv=None):
     imp.add_argument("--case", required=True)
     imp.add_argument("--host", help="Explicit endpoint identity for artifacts without Computer")
     imp.add_argument("--time-zone", default="UTC", help="Assumption for timezone-less export values: UTC, unknown, or +09:00")
+    cloud = commands.add_parser('cloud-import', help='Verify and import an immutable cloud case bundle')
+    cloud.add_argument('bundle')
+    cloud.add_argument('--allow-partial', action='store_true')
     commands.add_parser("stats")
     search = commands.add_parser("search")
     search.add_argument("query", nargs="?", default="")
@@ -90,6 +93,9 @@ def main(argv=None):
     try:
         if args.command == "ingest":
             result = ingest(args.input, args.db, args.case, args.host, args.time_zone, progress)
+        elif args.command == 'cloud-import':
+            from .cloud import ingest_cloud
+            result = ingest_cloud(args.bundle, args.db, args.allow_partial)
         elif args.command == 'analyze':
             from .analysis import build_brief, generate_hypotheses, markdown_report
             from .timeline import TimelineIndex

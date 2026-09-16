@@ -20,9 +20,9 @@ resource "aws_instance" "web" {
     kms_key_id  = var.kms_workload_ebs_arn
   }
 
-  user_data_base64            = module.web_bootstrap.user_data_base64
+  user_data_base64            = local.web_bootstrap_loader
   user_data_replace_on_change = true
-  depends_on                  = [aws_route.private_nat, aws_route_table_association.private, aws_secretsmanager_secret_version.wordpress]
+  depends_on                  = [aws_route.private_nat, aws_route_table_association.private, aws_secretsmanager_secret_version.wordpress, aws_secretsmanager_secret_version.dvwa, aws_iam_role_policy.bootstrap_read]
 
   metadata_options {
     http_endpoint               = "enabled"
@@ -64,9 +64,9 @@ resource "aws_instance" "app" {
     kms_key_id  = var.kms_workload_ebs_arn
   }
 
-  user_data_base64            = module.app_bootstrap.user_data_base64
+  user_data_base64            = local.app_bootstrap_loader
   user_data_replace_on_change = true
-  depends_on                  = [aws_route.private_nat, aws_route_table_association.private, aws_secretsmanager_secret_version.wordpress]
+  depends_on                  = [aws_route.private_nat, aws_route_table_association.private, aws_secretsmanager_secret_version.wordpress, aws_secretsmanager_secret_version.dvwa, aws_iam_role_policy.bootstrap_read]
 
   metadata_options {
     http_endpoint               = "enabled"
@@ -108,9 +108,9 @@ resource "aws_instance" "soc" {
   }
 
 
-  user_data_base64            = module.soc_bootstrap.user_data_base64
+  user_data_base64            = local.soc_bootstrap_loader
   user_data_replace_on_change = true
-  depends_on                  = [aws_route.private_nat, aws_route_table_association.private, aws_secretsmanager_secret_version.wordpress]
+  depends_on                  = [aws_route.private_nat, aws_route_table_association.private, aws_secretsmanager_secret_version.wordpress, aws_secretsmanager_secret_version.dvwa, aws_iam_role_policy.bootstrap_read]
 
   metadata_options {
     http_endpoint               = "enabled"
@@ -154,9 +154,14 @@ module "web_bootstrap" {
   source = "../modules/bootstrap"
   role   = "web"
   environment = {
-    APP_PRIVATE_IP   = aws_instance.app.private_ip
-    ALB_SUBNET_CIDRS = join(",", [local.subnets["ingress-a"].cidr, local.subnets["ingress-c"].cidr])
-    AWS_REGION       = var.region
+    APP_PRIVATE_IP       = aws_instance.app.private_ip
+    WAF_MODE             = var.waf_mode
+    COLLECTOR_URL        = "https://github.com/Velocidex/velociraptor/releases/download/v0.77.2/velociraptor-v0.77.2-linux-amd64"
+    COLLECTOR_SHA256     = "6c4c23c466d892788ff56ddcd3a31f844e4c0d797ade454c5e2625eb9e427077"
+    EVIDENCE_BUCKET      = var.evidence_bucket
+    EVIDENCE_KMS_KEY_ARN = var.evidence_kms_key_arn
+    ALB_SUBNET_CIDRS     = join(",", [local.subnets["ingress-a"].cidr, local.subnets["ingress-c"].cidr])
+    AWS_REGION           = var.region
   }
 }
 
@@ -164,11 +169,20 @@ module "app_bootstrap" {
   source = "../modules/bootstrap"
   role   = "app"
   environment = {
-    WORDPRESS_VERSION = var.wordpress_version
-    WORDPRESS_SHA256  = var.wordpress_sha256
-    WP_APP_SECRET_ARN = aws_secretsmanager_secret.wordpress.arn
-    WP_URL            = "https://${aws_lb.main.dns_name}"
-    AWS_REGION        = var.region
+    COLLECTOR_URL        = "https://github.com/Velocidex/velociraptor/releases/download/v0.77.2/velociraptor-v0.77.2-linux-amd64"
+    COLLECTOR_SHA256     = "6c4c23c466d892788ff56ddcd3a31f844e4c0d797ade454c5e2625eb9e427077"
+    EVIDENCE_BUCKET      = var.evidence_bucket
+    EVIDENCE_KMS_KEY_ARN = var.evidence_kms_key_arn
+    WORDPRESS_VERSION    = var.wordpress_version
+    WORDPRESS_SHA256     = var.wordpress_sha256
+    DVWA_APP_SECRET_ARN  = aws_secretsmanager_secret.dvwa.arn
+    DVWA_URL             = "https://codeload.github.com/digininja/DVWA/tar.gz/a96943dc1f52f390ee5df72144660636c4b7dd06"
+    DVWA_SHA256          = "be73e29b187bd9ceadbe7428217a0547687f38557412e13fb32972c40cb4fb35"
+    RDS_CA_URL           = "https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem"
+    RDS_CA_SHA256        = "e5bb2084ccf45087bda1c9bffdea0eb15ee67f0b91646106e466714f9de3c7e3"
+    WP_APP_SECRET_ARN    = aws_secretsmanager_secret.wordpress.arn
+    WP_URL               = "https://${aws_lb.main.dns_name}"
+    AWS_REGION           = var.region
   }
 }
 
@@ -176,8 +190,12 @@ module "soc_bootstrap" {
   source = "../modules/bootstrap"
   role   = "soc"
   environment = {
-    ELASTIC_VERSION    = var.elastic_version
-    SOC_DATA_VOLUME_ID = aws_ebs_volume.soc_data.id
-    AWS_REGION         = var.region
+    ELASTIC_VERSION     = var.elastic_version
+    SOC_DATA_VOLUME_ID  = aws_ebs_volume.soc_data.id
+    PROJECT             = var.project
+    WORKLOAD_ACCOUNT_ID = var.workload_account_id
+    SECURITY_ACCOUNT_ID = var.security_account_id
+    AUDIT_EXTRA_REGIONS = join(",", var.audit_extra_regions)
+    AWS_REGION          = var.region
   }
 }

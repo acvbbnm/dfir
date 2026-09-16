@@ -8,7 +8,7 @@ apt-get update -y
 timedatectl set-timezone Asia/Seoul
 
 apt-get install -y \
-  curl wget unzip jq openssl python3 python3-boto3 python3-pymysql software-properties-common \
+  curl wget unzip jq openssl python3 python3-boto3 python3-pymysql python3-requests software-properties-common \
   apt-transport-https \
   ca-certificates \
   gnupg \

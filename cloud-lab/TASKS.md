@@ -1,5 +1,10 @@
 # 구현 작업 세분화 목록
 
+> 2026-09-16 실행 기준: [시나리오 v1.1](scenarios/SCENARIO_LIBRARY.md)·[수정/지원 범위](results/SCENARIO_FIXES.md). 아래의 SQS·landing 복제·snapshot copy·host 없는 자동 사건·고급 상관·대응 실행기는 후속 목표이며 현재 구현 완료를 뜻하지 않는다. S0~S6는 준비 검사, N/W/H/C/I/D/E/X/K는 본 실험 ID다.
+
+
+> **2026-09-15 구현/검증 대조:** 이 문서의 장기 목표와 과거 후보 구성을 현재 완료 상태로 해석하지 않는다. 현재 기준선은 [DEPLOYMENT.md](DEPLOYMENT.md), 수행된 검사는 [LOCAL_VALIDATION.md](results/LOCAL_VALIDATION.md)다. ModSecurity 기본·내부 ALB·선택 test-a 실행기·초기 Atlas 오프라인 import까지 준비했으며 AWS 수락/전체 분석·대응은 미완료다.
+
 작성일: 2026-09-09  
 기준 문서: DESIGN.md, BUILD_AND_ATTACK.md, CLOUD_FORENSICS.md, OPEN_SOURCE.md, PIPELINE.md
 
@@ -28,9 +33,9 @@
 | A-2-1 | OpenTofu 버전 확정, 로컬 설치 확인 | `tofu --version` 출력 기록 | 버전 일치 |
 | A-2-2 | AWS provider 버전 확정 (hashicorp/aws ~> 5.x) | required_providers 블록 | `tofu init` 성공 |
 | A-2-3 | OS 이미지 확정 — Ubuntu 24.04 LTS AMI ID (ap-northeast-2) | variables.tf의 ami_id | AWS CLI로 AMI 존재 확인 |
-| A-2-4 | Elastic Stack 버전 확정 (8.17.x) | toolchain.lock.json | 로컬 버전과 호환 확인 |
+| A-2-4 | Elastic Stack 버전 확정 (8.19.20) | toolchain.lock.json | 로컬 버전과 호환 확인 |
 | A-2-5 | Suricata 버전 확정 (7.x) | toolchain.lock.json | PPA 설치 가능 확인 |
-| A-2-6 | WordPress 6.x + PHP 8.3 + MySQL 8.4 호환 확인 | toolchain.lock.json | 공식 호환 매트릭스 대조 |
+| A-2-6 | WordPress 7.1 + PHP 8.3 + MySQL 8.4 호환 확인 | toolchain.lock.json | 공식 호환 매트릭스 대조 |
 | A-2-7 | DVWA, CloudGoat 버전·commit hash 고정 | toolchain.lock.json | git ls-remote 확인 |
 | A-2-8 | Velociraptor offline collector 버전·SHA-256 | toolchain.lock.json | 공식 릴리스 대조 |
 | A-2-9 | Hayabusa, pySigma, SigmaHQ 규칙 버전 고정 | toolchain.lock.json | 릴리스 해시 대조 |
@@ -221,42 +226,42 @@
 | C-2-6 | 정상 canary 통과 확인 — 모든 방어 계층 활성 상태에서 정상 서비스 | HTTP 200 | 전체 경로 정상 |
 | C-2-7 | 정책 hash 기록 — WAF/Suricata/auditd 규칙 버전 | 해시 목록 | sha256sum |
 
-### C-3. 정상 기준선 (B07, S0)
+### C-3. 정상 기준선 (B07, N0)
 
 | # | 작업 | 산출물 | 확인 방법 |
 |---|------|--------|----------|
-| C-3-1 | S0 실행 — 30분 정상 부하 (로그인·글·업로드·열람·관리) | 트래픽 기록 | 시나리오 스크립트 |
+| C-3-1 | N0 실행 — 30분 정상 부하 (로그인·글·업로드·열람·관리) | 트래픽 기록 | 시나리오 스크립트 |
 | C-3-2 | 전 계층 로그 도착 확인 — Nginx/Apache/WP/journal/Suricata/Defend | 소스별 count | ES 쿼리 |
 | C-3-3 | WAF/ALB/CloudTrail/Flow 로그 도착 확인 | S3 + ES 확인 | 시간 대조 |
 | C-3-4 | 기준선 지연 측정 — 이벤트→ES 도착 시간 | 지연 분포 기록 | 타임스탬프 차이 |
-| C-3-5 | 오탐 확인 — 탐지 규칙 없는 상태에서 의도치 않은 경보 0건 | 경보 count | Security 앱 확인 |
+| C-3-5 | 오탐 확인 — 규칙을 켠 정상 기준선에서 경보별 기대 여부를 분류 | 경보 count | Security 앱 확인 |
 | C-3-6 | 수집 장애 시험 — Agent 중지 5분→복구 후 재수집 | 빈 구간 + 복구 기록 | 시간 gap 확인 |
 
-### C-4. 공격 수행 (B08~B10, S1~S5)
+### C-4. 공격 수행 (B08~B10, W/H/C/I/D 실험)
 
 | # | 작업 | 산출물 | 확인 방법 |
 |---|------|--------|----------|
 | C-4-1 | DVWA 분리 배치 — 별도 vhost, 별도 DB, 별도 사용자 | DVWA 접속 가능 | 로그인 화면 |
-| C-4-2 | S1 — DVWA SQLi (Count 모드) — 실제 DB 조회 성공 확인 | 쿼리 결과 증거 | HTTP 응답 + DB 행 |
-| C-4-3 | S1 — WAF Block 전환 후 동일 요청 → 차단 확인 | WAF 로그 Block | 응답 403 |
-| C-4-4 | S2 — 명령 실행 / 파일 업로드 — 실험 파일·프로세스 생성 | 파일 hash + ps 출력 | 호스트 증거 |
-| C-4-5 | S3 — IPS drop 전환 후 동일 공격 → Suricata 차단 확인 | EVE drop 이벤트 | backend 미실행 확인 |
-| C-4-6 | S3 — WAF Count 상태에서 IPS만 차단 대조 | 계층별 로그 비교 | 어디서 막혔는지 기록 |
-| C-4-7 | S4 — CloudGoat ec2_ssrf 이식·SSRF→IMDS→role→S3 접근 | 실제 객체 읽기 성공 | CloudTrail 이벤트 |
-| C-4-8 | S4 — 보안 설정 적용 후 동일 경로 차단 확인 | AccessDenied | CloudTrail 거부 |
-| C-4-9 | S5 — 제한 역할 secret 열람·SG 변경·DB 접근 성공/거부 대조 | API 성공/거부 쌍 | CloudTrail 대조 |
-| C-4-10 | 각 시나리오 정답 기록 작성 | scenarios/S1~S5_answers.json | schema 검증 |
+| C-4-2 | W1 — DVWA SQLi (Count 모드) — 실제 DB 조회 성공 확인 | 쿼리 결과 증거 | HTTP 응답 + DB 행 |
+| C-4-3 | W1 — WAF Block 전환 후 동일 요청 → 차단 확인 | WAF 로그 Block | 응답 403 |
+| C-4-4 | W2 — 명령 실행 / 파일 업로드 — 실험 파일·프로세스 생성 | 파일 hash + ps 출력 | 호스트 증거 |
+| C-4-5 | W1/IPS 변형 — IPS drop 전환 후 동일 공격 → Suricata 차단 확인 | EVE drop 이벤트 | backend 미실행 확인 |
+| C-4-6 | W1/IPS 변형 — WAF Count 상태에서 IPS만 차단 대조 | 계층별 로그 비교 | 어디서 막혔는지 기록 |
+| C-4-7 | C1/D1 — CloudGoat ec2_ssrf 이식·SSRF→IMDS→role→S3 접근 | 실제 객체 읽기 성공 | CloudTrail 이벤트 |
+| C-4-8 | C1/D1 — 보안 설정 적용 후 동일 경로 차단 확인 | AccessDenied | CloudTrail 거부 |
+| C-4-9 | C2/C3/K6 — 제한 역할 secret 열람·SG 변경·DB 접근 성공/거부 대조 | API 성공/거부 쌍 | CloudTrail 대조 |
+| C-4-10 | 각 시나리오 정답 기록 작성 | results/<scenario_id>-<run_id>.json | schema 검증 |
 
 ### C-5. 탐지 규칙 배치 (B11, D01~D08)
 
 | # | 작업 | 산출물 | 확인 방법 |
 |---|------|--------|----------|
-| C-5-1 | D01 — WAF SQLi/known-bad 반복 (threshold rule) | 규칙 설정 | S1 재현 시 경보 |
+| C-5-1 | D01 — WAF SQLi/known-bad 반복 (threshold rule) | 규칙 설정 | W1 재현 시 경보 |
 | C-5-2 | D02 — 로그인 brute force + 성공 (threshold + EQL) | 규칙 설정 | 테스트 로그인 시 경보 |
-| C-5-3 | D03 — 웹 shell + 파일/예약 변화 (EQL sequence) | 규칙 설정 | S2 재현 시 경보 |
-| C-5-4 | D04 — Suricata high rule + drop | 규칙 설정 | S3 재현 시 경보 |
-| C-5-5 | D05 — APP 역할 비정상 S3/secret 접근 | 규칙 설정 | S4/S5 재현 시 경보 |
-| C-5-6 | D06 — SG/IAM/로깅 변경 | 규칙 설정 | S5 재현 시 경보 |
+| C-5-3 | D03 — 웹 shell + 파일/예약 변화 (EQL sequence) | 규칙 설정 | W2 재현 시 경보 |
+| C-5-4 | D04 — Suricata high rule + drop | 규칙 설정 | W1/IPS 재현 시 경보 |
+| C-5-5 | D05 — APP 역할 비정상 S3/secret 접근 | 규칙 설정 | C1/C2/C3 재현 시 경보 |
+| C-5-6 | D06 — SG/IAM/로깅 변경 | 규칙 설정 | I/E 실험 재현 시 경보 |
 | C-5-7 | D07 — DB 비정상 스키마 접근 | 규칙 설정 | 비인가 쿼리 시 경보 |
 | C-5-8 | D08 — Agent/IPS/canary 5분 단절 | 규칙/watcher | 의도적 중단 시 경보 |
 | C-5-9 | TP/FP/FN 평가 — 각 규칙별 정답 대비 | 평가 결과표 | 정밀도·재현율 기록 |
@@ -322,11 +327,11 @@
 > 게이트: G7~G8 · 빌드: B13~B14  
 > 목표: 격리/복구 실행 + AI 평가 + 증거 내보내기 + AWS 정리
 
-### E-1. 대응 실행 (B13, S6)
+### E-1. 대응 실행 (B13, K3; 별도 수동 runbook)
 
 | # | 작업 | 산출물 | 확인 방법 |
 |---|------|--------|----------|
-| E-1-1 | S6 사건 선정 — high 경보 기반 | 사건 시나리오 | 정답 기록 작성 |
+| E-1-1 | K3 사건 선정 — high 경보 기반 | 사건 시나리오 | 정답 기록 작성 |
 | E-1-2 | 증거 수집 완료 확인 (D-3 반복) | READY 상태 | manifest 확인 |
 | E-1-3 | EC2 격리 실행 — SG 교체 + ALB 해제 | 변경 기록 | 새 연결 차단 확인 |
 | E-1-4 | 기존 tracked connection 검증 — 연결 지속 여부 | 테스트 결과 | nc/curl 확인 |
@@ -343,7 +348,7 @@
 
 | # | 작업 | 산출물 | 확인 방법 |
 |---|------|--------|----------|
-| E-2-1 | S6 사건 Atlas import — 전체 어댑터 실행 | 시간축 + 관계 그래프 | 노드·관계 수 확인 |
+| E-2-1 | K3 사건 Atlas import — 전체 어댑터 실행 | 시간축 + 관계 그래프 | 노드·관계 수 확인 |
 | E-2-2 | 시간축 검토 — AWS API·Linux·RDS·WAF 이벤트 정렬 | 시간축 스크린샷 | 순서·빈 구간 확인 |
 | E-2-3 | 근거 묶음 확인 — CloudTrail-WAF-ALB trace 연결 | 관계 그래프 | 연결 경로 확인 |
 | E-2-4 | AI 가설 생성 — 사건 맥락 프롬프트 | 가설 텍스트 | 근거 유무 확인 |

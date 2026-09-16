@@ -1,0 +1,690 @@
+{
+  "reviewed_at": "2026-09-15",
+  "mode": "offline static and schema verification; no AWS API or attack execution",
+  "markdown_inventory": [
+    {
+      "path": "AGENTS.md",
+      "lines": 45,
+      "sha256": "09ad428ceee02f1daebf9760914d1f39869ce1aebd6340533dce1ca48fbd99c3"
+    },
+    {
+      "path": "CLAUDE.md",
+      "lines": 45,
+      "sha256": "34d0f175a47c3aaed63d34f35d04a3d590e25ed8a26a4491304dc9cc926a9114"
+    },
+    {
+      "path": "DESIGN.md",
+      "lines": 829,
+      "sha256": "128ac48bc88227eb4ce90e626dfcf1cf17c4931316f51197469778d059065281"
+    },
+    {
+      "path": "README.md",
+      "lines": 270,
+      "sha256": "c663925af0f0253dfc89f4052b2950f088c7e82826306ad4fa1fc877ff55c293"
+    },
+    {
+      "path": "cloud-lab/BUILD_AND_ATTACK.md",
+      "lines": 273,
+      "sha256": "e47d7942ed06f62598331b64713f85638767e180e71eaf63e307686604f1188d"
+    },
+    {
+      "path": "cloud-lab/CLOUD_FORENSICS.md",
+      "lines": 714,
+      "sha256": "6d2a67bb3e292d94a0ccb2279618da16a424b42eea0ddf32311d2d12c67d5984"
+    },
+    {
+      "path": "cloud-lab/DEPLOYMENT.md",
+      "lines": 87,
+      "sha256": "3c0bf45d3521a74dd60c32ea2c86b8acc37e676338a372feafcc9151f897c58f"
+    },
+    {
+      "path": "cloud-lab/DESIGN.md",
+      "lines": 499,
+      "sha256": "936758ab5b06f08b6898251aa8bdb5731f46403b120a674166e5175115d13a6d"
+    },
+    {
+      "path": "cloud-lab/HANDOFF_CLAUDE.md",
+      "lines": 16,
+      "sha256": "56d9ff03370463f1fb62f13b478c212f0cb3bf702124cb9bbd78fd948c3b6ccf"
+    },
+    {
+      "path": "cloud-lab/LOCAL_DEVELOPMENT.md",
+      "lines": 40,
+      "sha256": "135317a9f85602bc9a9bc796914f0aa76491627ee88b3093c3acf0fdcbd09bd6"
+    },
+    {
+      "path": "cloud-lab/OPEN_SOURCE.md",
+      "lines": 162,
+      "sha256": "aca49ce3afa122157dee86f9c26c4f816c68316455847f69d1e28dfb5463cd10"
+    },
+    {
+      "path": "cloud-lab/PIPELINE.md",
+      "lines": 541,
+      "sha256": "c87feb60fae0f08b8097ec48e694befaf98b33db50260859d6c568c3eb48534d"
+    },
+    {
+      "path": "cloud-lab/README.md",
+      "lines": 13,
+      "sha256": "88b1611fa31c0a7c6d5439c25b79935a5196024f0738d99908530e88108c7f4f"
+    },
+    {
+      "path": "cloud-lab/TASKS.md",
+      "lines": 400,
+      "sha256": "375c085fc4e8e91940a37bad90a33e78f0a91e7b0b1c4f764883baa5fcc6c4b0"
+    },
+    {
+      "path": "cloud-lab/THIRD_PARTY_NOTICES.md",
+      "lines": 59,
+      "sha256": "838d2fc9a779a30781c434964841352401642e87d1c912891108cbfbdfcda1f2"
+    },
+    {
+      "path": "cloud-lab/results/LOCAL_VALIDATION.md",
+      "lines": 34,
+      "sha256": "fa4ab3123c1ef025838a33e8236084aba74dfe890816c9f722fcb093efbac20d"
+    },
+    {
+      "path": "cloud-lab/scenarios/SCENARIO_LIBRARY.md",
+      "lines": 158,
+      "sha256": "15883e18481a9861a1483af2bf89ec235e7ef43fdbcbdc017cb08c10c6d03503"
+    },
+    {
+      "path": "cloud-lab/siem/README.md",
+      "lines": 9,
+      "sha256": "41bc171314d5475ac824fbdc7dc2cc12751f05649e9cc36dc931473d4728befe"
+    }
+  ],
+  "markdown_count": 18,
+  "markdown_lines": 4194,
+  "source_pdf": {
+    "path": "design.pdf",
+    "sha256": "3d10de94410dbc6757094c560533e6f0db4f843fce887aad31066973504bda90",
+    "pages": 5
+  },
+  "scenario_ids": [
+    "N0",
+    "W1",
+    "W2",
+    "W3",
+    "W4",
+    "W5",
+    "H1",
+    "H2",
+    "H3",
+    "C1",
+    "C2",
+    "C3",
+    "I1",
+    "I2",
+    "I3",
+    "I4",
+    "D1",
+    "D2",
+    "D3",
+    "D4",
+    "E1",
+    "E2",
+    "E3",
+    "X1",
+    "X2",
+    "K1",
+    "K2",
+    "K3",
+    "K4",
+    "K5",
+    "K6",
+    "K7",
+    "K8",
+    "K9",
+    "K10",
+    "K11"
+  ],
+  "scenario_count": 36,
+  "unique_ids": 36,
+  "schema_control_S0_errors": [],
+  "schema_id_results": [
+    {
+      "scenario_id": "N0",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'N0' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "W1",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'W1' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "W2",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'W2' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "W3",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'W3' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "W4",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'W4' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "W5",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'W5' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "H1",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'H1' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "H2",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'H2' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "H3",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'H3' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "C1",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'C1' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "C2",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'C2' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "C3",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'C3' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "I1",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'I1' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "I2",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'I2' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "I3",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'I3' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "I4",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'I4' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "D1",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'D1' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "D2",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'D2' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "D3",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'D3' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "D4",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'D4' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "E1",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'E1' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "E2",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'E2' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "E3",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'E3' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "X1",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'X1' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "X2",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'X2' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "K1",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'K1' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "K2",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'K2' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "K3",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'K3' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "K4",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'K4' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "K5",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'K5' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "K6",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'K6' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "K7",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'K7' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "K8",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'K8' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "K9",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'K9' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "K10",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'K10' does not match '^S[0-6]$'"
+        }
+      ]
+    },
+    {
+      "scenario_id": "K11",
+      "errors": [
+        {
+          "path": [
+            "scenario_id"
+          ],
+          "validator": "pattern",
+          "message": "'K11' does not match '^S[0-6]$'"
+        }
+      ]
+    }
+  ],
+  "rejected_new_ids": 36,
+  "generated_runner_plan": {
+    "executed": false,
+    "stdout": "{\"report\": \"C:\\\\Users\\\\SBA_USER\\\\Desktop\\\\evidence-atlas\\\\.runtime\\\\scenario-review\\\\runner-plan.json\", \"executed\": false, \"requests\": 0}",
+    "answer_schema_errors": [
+      {
+        "path": [],
+        "validator": "required",
+        "message": "'executed_at' is a required property"
+      },
+      {
+        "path": [],
+        "validator": "required",
+        "message": "'targets' is a required property"
+      },
+      {
+        "path": [],
+        "validator": "required",
+        "message": "'expected_evidence' is a required property"
+      },
+      {
+        "path": [
+          "actions",
+          0
+        ],
+        "validator": "type",
+        "message": "['GET', '/', None] is not of type 'object'"
+      },
+      {
+        "path": [
+          "actions",
+          1
+        ],
+        "validator": "type",
+        "message": "['GET', '/wp-login.php', None] is not of type 'object'"
+      }
+    ],
+    "note": "Plan is a raw HTTP receipt, not a complete answer record; no execution performed."
+  },
+  "configured_cloudtrail_sources": [
+    {
+      "region": "ap-northeast-2",
+      "account_id": "111122223333",
+      "transport": "s3",
+      "kind": "cloudtrail",
+      "bucket": "ea-cloudtrail-444455556666",
+      "prefix": "AWSLogs/111122223333/CloudTrail/ap-northeast-2/{date}/",
+      "role_arn": "arn:aws:iam::444455556666:role/ea-central-log-reader"
+    }
+  ],
+  "terraform_file_count": 34,
+  "trails": [
+    {
+      "name": "main",
+      "path": "cloud-lab/infra/foundation/cloudtrail.tf",
+      "event_selector": [
+        {
+          "read_write_type": "\"All\"",
+          "include_management_events": true,
+          "__is_block__": true
+        }
+      ],
+      "advanced_event_selector": null
+    },
+    {
+      "name": "workload",
+      "path": "cloud-lab/infra/foundation/cloudtrail.tf",
+      "event_selector": [
+        {
+          "read_write_type": "\"All\"",
+          "include_management_events": true,
+          "__is_block__": true
+        }
+      ],
+      "advanced_event_selector": null
+    }
+  ],
+  "s3_replication_resources": [],
+  "s3_object_lock_resources": [],
+  "rds": [
+    {
+      "name": "main",
+      "path": "cloud-lab/infra/lab/rds.tf",
+      "storage_encrypted": true,
+      "kms_key_id": null,
+      "logs": [
+        "\"error\"",
+        "\"slowquery\""
+      ]
+    }
+  ],
+  "installed_siem_rules": [
+    {
+      "id": "ea-waf-match",
+      "name": "WAF rule match",
+      "query": "ea.waf.message_count > 0",
+      "severity": "medium"
+    },
+    {
+      "id": "ea-suricata-alert",
+      "name": "Suricata alert",
+      "query": "event.kind:alert and rule.id:*",
+      "severity": "high"
+    },
+    {
+      "id": "ea-endpoint-alert",
+      "name": "Endpoint alert",
+      "query": "event.kind:alert and event.module:endpoint",
+      "severity": "high"
+    }
+  ],
+  "functional_baseline": "Prior final local validation: cloud-lab 63 + Atlas 79 = 142 unique tests; not rerun or counted as scenario execution."
+}

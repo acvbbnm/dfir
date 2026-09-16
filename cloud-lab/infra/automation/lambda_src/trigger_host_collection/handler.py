@@ -3,6 +3,10 @@
 import logging
 import os
 import time
+import hashlib
+import json
+import re
+from botocore.config import Config
 
 import boto3
 
@@ -37,13 +41,18 @@ def lambda_handler(event, context):
         aws_session_token=creds["SessionToken"],
     )
 
+    s3 = boto3.client('s3', region_name=REGION, config=Config(signature_version='s3v4'))
+    object_key = f'cases/{case_id}/host-triage/{instance_id}/triage.zip'
+    upload_url = s3.generate_presigned_url('put_object', Params={
+        'Bucket':STAGING_BUCKET,'Key':object_key,'ServerSideEncryption':'aws:kms',
+        'SSEKMSKeyId':os.environ['EVIDENCE_KMS_KEY_ARN'],
+        'Metadata':{'source-kind':'velociraptor-zip'}}, ExpiresIn=600)
     resp = ssm.send_command(
         InstanceIds=[instance_id],
         DocumentName=ssm_document,
         Parameters={
             "CaseId": [case_id],
-            "StagingBucket": [STAGING_BUCKET],
-            "CollectionProfile": ["standard"],
+            "UploadUrl": [upload_url],
         },
         TimeoutSeconds=300,
         Comment=f"EA evidence collection for {case_id}",
@@ -73,10 +82,25 @@ def lambda_handler(event, context):
         return {"status": "PARTIAL", "ssm_status": status, "command_id": command_id,
                 "error": "Host collection did not finish successfully"}
 
-    output_key = f"cases/{case_id}/host-triage/"
+    try:
+        head = s3.head_object(Bucket=STAGING_BUCKET,Key=object_key)
+        if head.get('ContentLength',0) <= 0 or head.get('VersionId') in (None,'','null'):
+            raise ValueError('Host upload has no immutable non-empty object')
+    except Exception:
+        return {'status':'PARTIAL','command_id':command_id,'error':'SSM succeeded but evidence upload is absent'}
+    try:
+        report=json.loads(inv.get('StandardOutputContent','').strip().splitlines()[-1])
+        if not re.fullmatch('[a-f0-9]{64}',report.get('sha256','')) or report['size_bytes']!=head['ContentLength']:
+            raise ValueError('Invalid collector report')
+    except (ValueError,KeyError,IndexError):
+        return {'status':'PARTIAL','command_id':command_id,'error':'Collector digest report is missing or invalid'}
+    output_key = object_key
 
     return {
         "command_id": command_id,
-        "status": status,
+        "status": report.get("status", "PARTIAL"),
+        "producer_sha256": report["sha256"],
+        "version_id": head["VersionId"],
+        "warnings": report.get("warnings", []),
         "output_key": output_key,
     }

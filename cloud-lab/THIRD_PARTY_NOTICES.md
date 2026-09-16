@@ -13,7 +13,7 @@
 
 | 소프트웨어 | 버전 | 라이선스 | 용도 |
 |-----------|------|---------|------|
-| WordPress | 6.x | GPL-2.0 | 대상 웹 애플리케이션 |
+| WordPress | 7.1 | GPL-2.0 | 대상 웹 애플리케이션 |
 | Nginx | 1.x | BSD-2-Clause | 리버스 프록시 |
 | Apache HTTP Server | 2.4 | Apache-2.0 | PHP 애플리케이션 서버 |
 | PHP | 8.3 | PHP License | WordPress 런타임 |
@@ -25,9 +25,9 @@
 | 소프트웨어 | 버전 | 라이선스 | 용도 |
 |-----------|------|---------|------|
 | Suricata | 7.x | GPL-2.0 | 네트워크 IPS |
-| Elasticsearch | 8.17.0 | Elastic License 2.0 / SSPL | 로그 저장·검색 |
-| Kibana | 8.17.0 | Elastic License 2.0 / SSPL | 로그 시각화 |
-| Elastic Agent | 8.17.0 | Elastic License 2.0 | 엔드포인트 에이전트 |
+| Elasticsearch | 8.19.20 | Elastic License 2.0 / SSPL | 로그 저장·검색 |
+| Kibana | 8.19.20 | Elastic License 2.0 / SSPL | 로그 시각화 |
+| Elastic Agent | 8.19.20 | Elastic License 2.0 | 엔드포인트 에이전트 |
 | Velociraptor | latest | AGPL-3.0 | 호스트 포렌식 수집 |
 
 ## Python Dependencies (Lambda / Collectors)
