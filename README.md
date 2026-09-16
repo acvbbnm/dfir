@@ -1,272 +1,152 @@
-# Evidence Atlas · KAPE
+# Evidence Atlas
 
-KAPE **Modules CSV 결과**를 읽어 원래 레코드와 출처를 SQLite에 보관하고, 해석 가능한 관계를 Neo4j로 적재하는 로컬 프로토타입입니다. 웹 화면에서 대상을 검색하고 주변 관계를 펼친 뒤 근거 CSV 레코드를 확인할 수 있습니다.
+**수집한 포렌식 증거를 시간축과 관계 그래프로 탐색하는 DFIR 분석 도구이며, AWS 관제·증거 수집 실험 코드를 함께 관리하는 저장소입니다.**
 
-기존 SIEM·ESXi와 독립적으로 실행합니다. 수집 에이전트, 유료 API, 클라우드가 필요하지 않습니다. 근거 검토 메모와 보고서, 선택적 로컬 Ollama 가설 생성을 지원합니다. AI 판정·차단·ATT&CK 자동 매핑은 구현하지 않았습니다. 현재 PC에서 Ollama와 `qwen2.5:7b` 설치를 확인했습니다. **실제 추론 품질·정답 사건셋 평가는 아직 하지 않았습니다.**
+KAPE Modules CSV와 검증된 사건 증거 묶음에서 출처·원래 값·해시를 보존하고, 연결 근거를 따라 조사할 수 있게 합니다. AWS 실험은 웹/DB·방어 정책부터 로그 수집, SIEM 경보, 증거 반출, Atlas 분석까지 검증하는 것이 목표입니다.
 
-## 확장 계획 진행상황 (2026-09-09 코드·실행 대조)
+> **2026-09-16 상태:** 로컬 구현·회귀 및 일부 실제 Linux 서비스 검증 완료. **AWS 미배포**, 실제 계정·AMI·견적·Agent 등록·로그 전달 수락 검사는 남아 있습니다. Atlas의 AWS 연동은 **manifest 기반 오프라인 가져오기 초기 구현**입니다.
 
-- [x] Phase 1의 SQLite→ES 동기화·조회·ECS 필드 투영과 CLI
-- [ ] Phase 1의 ES 직접 수집·백엔드 선택·ES 기반 시간축/웹 뷰어
-- [x] Phase 2: 시간축에서 1~2단계 그래프 탐색·근거 확인·시간축 복귀
-- [x] Phase 3: Sigma 매칭 — 1,494규칙 로딩, 필드 매핑, 조건 평가, detections 테이블, CLI 3종
-- [ ] Phase 4: 다중 소스 — 어댑터 코드는 추가됨. Sysmon 시간축 오류 및 MFT/USN 검색 연결 보완 필요
-- [ ] Phase 5: 다중 호스트 상관관계 후보와 검증
+[로컬 실행](#로컬에서-시작하기) · [상세 사용법](docs/USAGE.md) · [AWS 구성](cloud-lab/README.md) · [배포 절차](cloud-lab/DEPLOYMENT.md) · [최신 검증 결과](cloud-lab/results/SCENARIO_FIXES.md) · [설계서](DESIGN.md)
 
-공격 샘플 DB는 37,357행 중 37,223행이 `evtx_other`다. 이들은 원본과 시간축을 제공하지만 의미 관계를 해석하지 않는다. 따라서 그래프 UI 완성은 모든 로그 종류의 분석 완성을 뜻하지 않는다. Phase 4에서 MFT/USN이 파이프라인에 통합되었고, Sysmon EVTX와 SRUM 어댑터도 추가되었다.
+## 현재 가능한 일과 남은 일
 
-### 이전 통합 점검 (`2905f96` 기준)
+| 영역 | 구현·확인한 범위 | 남은 범위 |
+|---|---|---|
+| 증거 탐색 | KAPE CSV 수집, SQLite 원래 행·출처·해시, 시간순 맵, 1~2단계 관계 그래프, 근거 조회 | 소스별 의미 해석 확대, 다중 호스트 상관 후보 |
+| 선택 분석 기능 | Neo4j 투영, ES 동기화·검색, Sigma 매칭 CLI/API, 로컬 Ollama 가설 연결 | ES 기반 뷰어, Sigma 표시 UI·정확도 평가, AI 실제 품질 평가 |
+| 다중 소스 | Sysmon 1/3/11/22·SRUM 어댑터, MFT/USN 디스크 인덱스 저장 | **MFT/USN 검색 통합 오류**, 전용 소스 표시·통합 검증 |
+| AWS 인프라 | 2계정·3계층 서비스의 OpenTofu 코드, 설치 스크립트, ModSecurity/Suricata·Elastic 설정 | 실제 AWS 배포, 권한·통신·Agent·로그·차단 수락 검사 |
+| 관제·증거 수집 | SIEM 규칙 13개, 사건·수집 워크플로 코드, Linux triage, 해시/manifest, 증거 반출·가져오기 | 실제 경보→수집 검증, AWS IAM/STS 관계 모델, SIEM→Atlas 자동 전달 |
+| 실험·대응 | S0~S3 제한 HTTP 준비 검사, S4~S6 수동 수락 절차, 추가 시나리오 36개 명세·준비 조건 | 36개 실험의 실행 환경·실증, 자동 격리/IAM 대응·복구 실행기 |
 
-당시 75개 단위 테스트는 통과했지만 아래 별도 통합 재현은 실패했다. 이후 Sysmon 시간축 fallback과 cloud-import를 보완해 2026-09-16 Atlas 79개를 통과했다. MFT 검색 통합은 남아 있어 Phase 4 전체 완료로 취급하지 않는다.
+**151개 테스트 통과는 AWS 운영 검증이나 모든 기능 완성을 뜻하지 않습니다.** MFT/USN은 저장 상태 `complete`와 검색 조건 `indexed`의 불일치가 남아 있습니다. 과거 Sysmon 시간축 오류는 fallback을 추가해 보완했습니다.
 
-- Sysmon Event ID 1 CSV를 `ingest()`로 정상 수집한 뒤 `TimelineIndex()`를 생성하면 `KeyError: sysmon_process_create`가 발생한다. 새 종류가 `timeline.KINDS`에 연결되지 않았다.
-- MFT 1행 CSV는 `fs_rows`에 저장되지만 소스 상태가 `complete`다. `FileIndex.sources()`는 `indexed`만 읽어 검색 가능한 소스가 0개로 반환된다.
-- Sigma 매칭 코드는 추가됐으며 시간축·그래프의 후보 표시 UI와 실제 정확도 평가는 남았다. 75개 테스트 통과는 모든 기능의 실제 동작 완성을 의미하지 않는다.
+## 전체 흐름
 
-## AWS 관제·포렌식 자동화 계획 (2026-09-15)
-
-총 AWS 예산 $300을 목표로 한 신규 실습이다. 상세 구성·비용 가정·검증 기준은 [cloud-lab/DESIGN.md](cloud-lab/DESIGN.md)를 따른다. AWS 리소스는 아직 배포하지 않았다. AWS 실습 인프라와 Atlas 개발은 모두 이 저장소에서 관리한다.
-
-- [x] 전체 프로젝트 설계 초안 작성 — 네트워크·로그·사건·증거·분석·대응·비용·종료 절차
-- [x] AWS 샘플 고정 커밋 검토·오픈소스 활용 계획 — [도구 선택과 재사용 범위](cloud-lab/OPEN_SOURCE.md)
-- [x] 클라우드 포렌식 상세 설계 — [계정/IAM/KMS·로그·휘발성·조사 파이프라인](cloud-lab/CLOUD_FORENSICS.md)
-- [x] 인프라 재설계 초안 — [서버·WordPress/RDS·DMZ·WAF/IPS/EDR·중앙 로그·실제 공격](cloud-lab/BUILD_AND_ATTACK.md)
-- [x] 배포 전 로컬 검사: cloud-lab 63개·Atlas 79개 및 실제 Linux WAF/웹·DB·SIEM·수집 검증 — [검증 기록과 한계](cloud-lab/results/LOCAL_VALIDATION.md)
-- [x] 신규 시나리오 36개 검토와 로그·스키마·탐지·대응 계약 보완 — [수정 결과/남은 AWS 수락 범위](cloud-lab/results/SCENARIO_FIXES.md). **실제 AWS 공격·탐지 검증은 미완료**
-- [x] 2026-09-16 최종 회귀: cloud-lab 72개 + Atlas 79개 = **151개 통과**, 실제 ES 검색/집계·Fleet URL 저장·지속성 원본 ZIP 검증
-- [x] 버전 고정·배포 입력 생성·제한된 테스트 실행기·원본 증거 반출 준비 — [배포 순서](cloud-lab/DEPLOYMENT.md)
-- [x] 로컬 Linux ZIP → Atlas 초기 가져오기: 125레코드·2공유 요청. **AWS 분석 기능 완성을 뜻하지 않음**
-- [x] OpenTofu foundation/lab/automation `validate` 및 Provider lock 기록 — [재현 방법](cloud-lab/LOCAL_DEVELOPMENT.md)
-
-- [ ] A0: 인프라·웹/DB·방어 정책·예산 준비, OSS 버전/해시 lock
-- [ ] A1: 계정·VPC·DMZ·SG·TLS·IAM·감사·SSM 구축
-- [ ] A2: WordPress·RDS·S3 자료 배치·정상 서비스 검증
-- [ ] A3: 중앙 로그·WAF/Suricata IPS/EDR·실제 공격 대조·SIEM 규칙/경보
-- [ ] A4: AWS 경보 → 사건 → 원본/선택 Linux·RDS 증거·해시·manifest
-- [ ] A5: Atlas AWS·Linux·RDS 자원/세션·시간축 연동
-- [ ] A6: 네트워크·IAM/DB 대응·복구 플레이북 검증
-- [ ] A7: AI 평가·통합 데모·보고서·증거 내보내기·AWS 자원 정리
-
-실제 구축 순서와 완료 기준은 B00~B14로 분해했다. 이전 Windows APP/EC2 DB 기본안은 교체했다. Sysmon을 포함한 새 시간축 종류의 fallback은 보완했다. MFT 검색 통합은 남았다. AWS 실제 로그 기반 자원·IAM/STS 관계 모델, SIEM→Atlas 전체 자동 연동은 후속 작업이다.
-
-## 시간순 전체 맵 사용법
-
-1. 위쪽 **전체 기간 분포**는 현재 필터에 해당하는 모든 시각을 집계합니다. 드래그로 구간을 선택하거나 `최근 7일` 등으로 이동합니다.
-   처음에는 전체 기간 분포와 마지막 기록 기준 최근 30일의 맵을 함께 보여줍니다. 오래된 Prefetch 한 건 때문에 주요 활동이 한쪽에 압축되는 것을 피하면서, `전체` 버튼으로 전체 기간 맵도 볼 수 있습니다.
-2. 프로세스 생성·로그온·PowerShell·Prefetch·레지스트리·바로가기/Jump List·기타 Windows 이벤트를 서로 다른 행에서 시간순으로 봅니다. 숫자 묶음을 누르면 해당 시각 구간으로 확대되고, 충분히 확대하면 개별 점이 나타납니다.
-3. 점이나 아래 목록의 행을 선택하면 기록 요약·연결된 흔적·원본 근거 패널이 열립니다. 원래 시각의 정밀도, 해당 Prefetch 시간 열, CSV 레코드와 해시를 확인할 수 있습니다.
-4. `연결된 흔적`에서 같은 실행 참조·경로·계정 등을 공유하는 다른 관찰로 이동합니다. `연결된 기록의 시간대로 이동`으로 관련 기록의 범위를 펼칠 수 있습니다. 점선은 공유 참조를 나타내며 인과 주장이 아닙니다.
-5. 아래 기록 목록은 50건씩, 연결된 흔적은 30건씩 페이지를 이동해 끝까지 탐색합니다. 확대 전에도 전체 집계에서 기록을 샘플링하거나 임의로 버리지 않습니다.
-
-6. **분석 보조** 탭은 선택한 기록, 공유 참조 최대 20건, 같은 호스트·수집 범위의 ±5분 기록 최대 10건을 근거 묶음으로 제공합니다. 공유 경로·항목을 넓은 계정 연결보다 우선하고, 같은 우선순위에서 가까운 시각을 선택합니다. 전체 관련 건수와 포함 범위를 명시합니다. 시간 근접 자료는 관계 미확인으로 표시합니다. 검토 메모 `.md`와 근거 묶음 `.json`을 저장할 수 있습니다.
-
-7. **이 기록의 관계 지도 열기**로 선택 기록의 1~2단계 관계를 펼칩니다. 노드를 누르면 상세, 선을 누르면 `basis`와 원본 CSV 근거가 표시됩니다. **이 노드를 중심으로 펼치기 → 이전 중심 → 시간축에서 이 기록 보기**로 탐색합니다.
-   C/VSS 필터는 관계 지도에 별도로 적용합니다. 최대 100개 노드 / 180개 관계를 표시하며 잘리면 안내합니다. 출처·호스트 허브는 선택 시에만 포함합니다. 그래프 아래 **노드·관계 목록**으로 키보드 탐색도 가능합니다. 의미 해석이 없는 이벤트는 이를 안내하며 연결을 임의 생성하지 않습니다.
-
-이 수집본의 시간축은 **171,360개 관찰**, 보존한 CSV는 **168,537개 레코드**입니다. Prefetch와 바로가기 한 행에서 여러 시각을 투영하므로 관찰 수는 CSV 행 수와 다릅니다. 시각 없는 관찰 904개는 그래프/원래 레코드에 보존하지만 시간축에서 제외합니다. EvtxECmd의 기타 이벤트 152,774개도 시간축에는 표시하지만 의미 관계를 새로 만들지는 않습니다. 화면 시각은 UTC이며 원래 값과 각 시각의 의미를 상세에 보존합니다. 파일 메타데이터에 2011년 시각도 포함되므로 시작 화면은 마지막 기록 기준 최근 30일을 보여줍니다.
+아래는 목표 파이프라인입니다. AWS 구간은 코드와 로컬 검증 단계이며, Atlas로의 증거 전달은 현재 반출 후 가져오기 방식입니다.
 
 ```mermaid
 flowchart LR
-    A[KAPE Modules 결과] --> B[파일 목록·SHA-256·헤더 분류]
-    B --> C[이벤트 / Prefetch / 레지스트리 / 바로가기 어댑터]
-    C --> D[SQLite: 원래 CSV 값·관찰·관계·처리 이력]
-    D --> E[로컬 근거 조회 화면]
-    D --> F[Neo4j: 노드·관계 투영]
-    D --> G[JSONL 내보내기]
-    D --> H[근거 검토 메모 / 선택적 로컬 AI 가설]
+    subgraph AWS["AWS 실험 환경 · 미배포"]
+        T["SSM 테스트 호스트"] --> L["내부 ALB · HTTPS"]
+        L --> W["WEB · Nginx / ModSecurity / Suricata"]
+        W --> A["APP · WordPress / DVWA"]
+        A --> D["비공개 RDS MySQL"]
+        W --> S["Elastic SIEM / Fleet"]
+        A --> S
+        C["CloudTrail / ALB / Flow / DNS / RDS 로그"] --> S
+        S --> Q["경보 / 조사 후보"]
+        Q --> E["사건별 수집 · S3 증거 / manifest"]
+    end
+    E -.->|"반출 후 cloud-import"| AT["Atlas · SQLite / 시간축 / 관계 그래프"]
+    K["KAPE Modules CSV"] --> AT
+    AT --> R["원본 근거 검토 / 보고서 / 선택적 로컬 AI 가설"]
 ```
 
-## 현재 PC에서 열기
+WEB/APP의 Elastic Agent·Defend는 별도 등록·동작 확인이 필요합니다. high/critical **EC2** 경보만 자동 사건 대상이며 자동 수집은 기본 비활성입니다. 그 외 경보는 검토 큐로 보냅니다. 관계 그래프의 선은 공유 참조이며 인과·악성 확정이 아닙니다.
 
-- KAPE 근거·새 그래프 확인: **http://127.0.0.1:8771**
-- 공격 샘플·새 그래프 조회: **http://127.0.0.1:8769**
-- Neo4j Browser: **http://127.0.0.1:17474**
-- Bolt: `bolt://127.0.0.1:17687`
-- 데이터: `data/sba.sqlite`, 사건 ID `SBA-20260831`
-- Neo4j 계정은 `neo4j`, 무작위 비밀번호는 `.runtime/connection.json`에 있습니다. 이 파일과 데이터 디렉터리는 Git에서 제외됩니다.
+## 로컬에서 시작하기
 
-조회 화면은 SQLite의 그래프 투영을 직접 읽습니다. 따라서 Neo4j를 켜지 않아도 근거 조회가 가능합니다. Neo4j는 같은 그래프를 Cypher로 확장 탐색하는 용도입니다.
-
-다음 실행 때 PowerShell에서:
+Python **3.11 이상**이 필요합니다. 아래 명령은 저장소 루트에서 실행하며 AWS를 배포하지 않습니다. 기본 수집·조회에는 Neo4j·Elasticsearch·Ollama가 필요하지 않습니다.
 
 ```powershell
-cd C:\Users\SBA_USER\Desktop\evidence-atlas
-.\run.ps1 -Port 8771
-# Neo4j도 시작하려면:
-.\run.ps1 -WithNeo4j -Port 8771
+git clone https://github.com/sasumm25-lab/dfir.git evidence-atlas
+cd evidence-atlas
+python -m venv .runtime/atlas-venv
+
+# 실제 KAPE Modules CSV 폴더로 바꾸세요. 원시 EVTX/PF/하이브는 직접 파싱하지 않습니다.
+.runtime/atlas-venv/Scripts/python.exe -m dfir_graph --db data/evidence.sqlite ingest D:\KAPE_RESULT --case CASE-001 --time-zone unknown
+.runtime/atlas-venv/Scripts/python.exe -m dfir_graph --db data/evidence.sqlite stats
+.runtime/atlas-venv/Scripts/python.exe -m dfir_graph --db data/evidence.sqlite serve --port 8765
 ```
 
-`run.ps1`은 Codex 번들 Python이 있으면 사용하고, 없으면 PATH의 Python을 사용합니다. `-PythonPath`로 Python 3.11 이상을 지정할 수 있습니다. 위 명령은 8771 포트를 사용합니다. 기본값은 8765이며, 이미 같은 포트에 서버가 있으면 먼저 해당 서버의 DB와 실행 경로를 확인하세요. 직접 실행한 조회 서버는 해당 콘솔에서 Ctrl+C로 종료합니다. Neo4j는 별도 백그라운드 프로세스이며 조회 서버 종료와 함께 종료되지 않습니다.
+실행 후 [http://127.0.0.1:8765](http://127.0.0.1:8765)를 엽니다. **DB를 먼저 가져와야** 조회 서버가 시작됩니다. `data/`, `.runtime/`, `vendor/`는 Git에서 제외되어 기존 개발 PC의 사건 DB·설치 파일·Sigma 규칙이 새 clone에 포함되지 않습니다.
 
-## 가져오기·내보내기
+`--time-zone unknown`은 시간대가 확인되지 않은 값을 임의로 UTC 변환하지 않습니다. 수집/파서의 시간대를 확인했다면 `UTC` 또는 `+09:00`을 지정하세요. 호스트가 여러 대면 입력 폴더를 나누고 `--host`를 지정합니다. `--db`는 항상 하위 명령 앞에 둡니다.
 
-아래 `python`은 Python 3.11 이상입니다. 모든 명령은 이 디렉터리에서 실행합니다. `--db`는 하위 명령 **앞**에 둡니다.
+선택 기능은 `.runtime/atlas-venv/Scripts/python.exe -m pip install -r requirements.txt`로 의존성을 설치한 뒤 [상세 사용법](docs/USAGE.md)을 따릅니다. Neo4j/ES 서버, Sigma 규칙, Ollama 모델은 별도 준비 대상입니다.
+
+### 반출한 클라우드 사건 열기
+
+이 저장소의 검증 계약에 맞는 `manifest.json`과 증거 파일이 있는 로컬 사건 폴더가 필요합니다. 임의의 S3 폴더나 ZIP을 그대로 넣는 명령이 아닙니다.
 
 ```powershell
-python -m dfir_graph --db data/sba.sqlite ingest D:\KAPE_RESULT --case SBA-20260831 --time-zone UTC
-python -m dfir_graph --db data/sba.sqlite stats
-python -m dfir_graph --db data/sba.sqlite search powershell --label ExecutableReference
-python -m dfir_graph --db data/sba.sqlite evidence 'record:여기에_식별자'
-python -m dfir_graph --db data/sba.sqlite export data/export
+.runtime/atlas-venv/Scripts/python.exe -m dfir_graph --db data/cloud-case.sqlite cloud-import D:\Evidence\CASE-001
+.runtime/atlas-venv/Scripts/python.exe -m dfir_graph --db data/cloud-case.sqlite serve --port 8766
 ```
 
-다른 수집본은 새 사건 ID를 사용하세요. `Computer` 값이 한 종류인 EvtxECmd 출력에서 Prefetch의 호스트를 추정하고 그 방식을 출처 메타데이터에 기록합니다. 여러 호스트가 섞여 있다면 호스트별로 입력 폴더를 나눠 `--host`를 지정하세요. 확인되지 않은 호스트는 미확정 상태로 남습니다.
+파일 해시·출처를 검증하며 부분 수집은 명시적인 `--allow-partial`이 필요합니다. 객체/ZIP 멤버 64MiB, 사건·ZIP 확장 256MiB 한도가 있습니다. 실제 반출 순서는 [DEPLOYMENT.md](cloud-lab/DEPLOYMENT.md)를 따릅니다.
 
-시각에 시간대 표기가 없으면 `--time-zone` 가정으로 정규화합니다. 이 수집본은 **UTC 가정**으로 적재했으며 수집자의 설정을 독립적으로 검증한 것은 아닙니다. `LastModifiedTimeUTC`는 열 정의에 따라 UTC로 처리합니다. 모르면 `unknown`을 사용해 그 외 시각의 UTC 변환을 보류할 수 있습니다. 같은 사건·입력의 호스트/시간대나 이미 파싱된 어댑터의 해석 버전이 달라지면 새 사건/DB가 필요합니다. 새로 지원하는 어댑터는 이전 미지원 파일만 추가 처리하며 기존 레코드 식별자는 유지합니다.
+## 진행상황
 
-## 로컬 분석 보조와 AI 연결
+이 절을 진행 상태의 단일 출처로 사용합니다. 체크된 항목은 명시된 범위만 완료한 것이며, **로컬 완료와 AWS 현장 검증을 구분**합니다.
 
-기본 근거 검토와 보고서는 모델 없이 작동합니다. 로컬 Ollama에 모델을 별도로 설치한 뒤 `run.ps1 -AIModel '설치된-모델명'` 또는 다음 CLI로 가설을 생성할 수 있습니다. 이미 실행 중인 서버에는 실행 옵션이 자동 반영되지 않습니다.
+### Atlas 개발
 
-```powershell
-python -m dfir_graph --db data/sba.sqlite analyze 'Observation:식별자' --markdown
-python -m dfir_graph --db data/sba.sqlite analyze 'Observation:식별자' --model '설치된-모델명'
-```
+- [x] Phase 1: SQLite→Elasticsearch 동기화·ECS 투영·CLI 검색
+- [ ] Phase 1 후속: ES 직접 수집·백엔드 선택·ES 기반 시간축/뷰어
+- [x] Phase 2: 시간축↔관계 그래프 탐색·출처/원본 근거 확인
+- [x] Phase 3: 지원 범위 내 Sigma 매칭·detections 저장·CLI/API
+- [ ] Phase 3 후속: 시간축/그래프 후보 표시와 오탐·정탐 평가
+- [ ] Phase 4: MFT/USN 검색 통합 및 다중 소스 검증 완료
+- [ ] Phase 5: 다중 호스트·세션 상관 후보와 검증
+- [ ] 로컬 AI: 실제 추론 품질·정답 사건셋 평가
 
-접속 대상은 `127.0.0.1:11434`로 고정합니다. 프록시·리디렉션·클라우드 모델을 허용하지 않으며 모델을 자동 설치하지 않습니다. 웹에서 버튼을 누를 때만 선택한 근거 묶음을 로컬 모델에 전달하고, 동시 추론은 1개로 제한합니다. 시간 제한은 120초입니다. 데이터 안의 지시문은 명령이 아니라 증거 문자열로 취급합니다. 모델에 셸, Cypher 실행, 차단 도구를 제공하지 않습니다.
+### AWS 배포 전 완료한 준비
 
-가설은 제공한 근거 식별자만 인용하도록 검증합니다. **식별자의 존재를 검증하는 것이 주장의 정확성을 보증하지는 않습니다.** 모든 AI 결과는 미검토 가설이며 분석자가 확인해야 합니다. 응답 형식·없는 근거 인용·클라우드 차단은 모의 응답으로 검증했으나, 실제 모델의 정확도·한국어 품질·성능 평가는 남아 있습니다.
+- [x] 인프라·보안 정책·로그/증거 파이프라인 설계와 OSS 재사용 검토
+- [x] foundation/lab/automation IaC, 서버 설치·수집·SIEM 설정 코드
+- [x] 버전·해시 고정, 배포 입력 생성, 제한된 HTTP 실행기와 원기록 계약
+- [x] 36개 추가 시나리오의 전제·로그·탐지·대응 조건 검토와 보완
+- [x] cloud-lab 72개 + Atlas 79개 = **151개 로컬 테스트 통과**
+- [x] OpenTofu 3단계 fmt/init(backend 비활성)/validate 통과
+- [x] 격리 Linux 서비스에서 WAF·웹/DB·SIEM·Velociraptor와 초기 Atlas 가져오기 검증
 
-## Neo4j 설치와 적재
+### AWS 전체 로드맵 — 현장 수락 포함
 
-```powershell
-# Windows x64: 공식 배포처에서 JRE 21 / Neo4j Community 5.26.30 다운로드
-# 해시 검증 후 .runtime에만 설치. Windows 서비스/전역 PATH 변경 없음.
-python scripts/setup_runtime.py --start
-python -m dfir_graph --db data/sba.sqlite load-neo4j --local-config .runtime/connection.json
-python scripts/verify_live.py --db data/sba.sqlite --reload
-```
-
-처음 설치할 때 인터넷이 필요합니다. 자료나 로그를 외부로 전송하는 기능은 없습니다. 이미 Neo4j가 있다면 `python -m pip install -r requirements.txt` 후 `NEO4J_PASSWORD` 환경변수와 `--uri`, `--user`, `--database`를 사용하세요. 로그인 비밀값을 소스 코드에 넣지 않습니다.
-
-설정은 루프백 접속, 인증 활성화, JVM 최대 힙 512MiB, 페이지 캐시 256MiB입니다. 전체 프로세스 메모리는 이 합보다 클 수 있습니다. 저장 공간은 SQLite, Neo4j 데이터·트랜잭션 로그, 선택적 JSONL 내보내기에 추가로 필요합니다. 설치 압축파일도 `.runtime`에 남습니다.
-
-Cypher 예시는 [queries/investigate.cypher](queries/investigate.cypher)를 참조하세요. `MERGE`는 노드·관계의 안정적인 식별자로 재적재하며 기존 그래프를 삭제하지 않습니다. 적재 도중 중단돼도 같은 명령을 다시 실행할 수 있습니다. SQLite는 근거의 기준 저장소이고 Neo4j는 재생성 가능한 투영입니다. 두 DB를 동시에 확정하는 분산 트랜잭션은 없습니다.
-
-## 지원 범위
-
-| 입력 | 원래 레코드 보존 | 그래프 처리 |
+| 단계 | 상태 | 완료에 필요한 결과 |
 |---|---|---|
-| EvtxECmd CSV | 모든 행 | Security 4624·4625·4688, PowerShell Operational 4104 |
-| PECmd 기본 CSV | 모든 행 | LastRun 및 PreviousRun0–6, 실행 참조, 수집 범위 |
-| Amcache 파일 항목 CSV | 모든 행 | 키 기록 시각, 항목별 메타데이터, 보고된 파일 경로 |
-| AppCompatCache CSV | 모든 행 | 캐시가 보관한 파일 수정 시각, 경로 |
-| RECmd BAM / UserAssist 상세 CSV | 모든 행 | 실행 시각 필드, 경로/프로그램 참조, BAM 계정 |
-| LECmd CSV | 모든 행 | 바로가기 생성·수정 및 저장된 대상 시각, 대상 참조 |
-| JLECmd Automatic / Custom CSV | 모든 행 | DestList/컨테이너 및 저장된 대상 시각, 대상 참조 |
-| PECmd Timeline CSV | 파일 목록·해시만 | 기본 출력의 파생 결과이므로 중복 적재 제외 |
-| TXT 콘솔 로그 | 파일 목록·해시, 일부 오류 상태 | 도구 처리 상태로 기록 |
-| MFTECmd MFT/USN CSV | 모든 행 | 디스크 인덱스(fs_rows), 시간축·경로 검색 지원 |
-| SrumECmd NetworkUsages CSV | 모든 행 | 앱별 네트워크 사용량, 계정 연결 |
-| SrumECmd AppResourceUseInfo CSV | 모든 행 | 앱별 실행 이력, 계정 연결 |
-| Sysmon EventId 1 (Process Create) | 모든 행 | 프로세스 인스턴스, 해시·무결성·부모 참조 |
-| Sysmon EventId 3 (Network Connect) | 모든 행 | 출발/도착 IP, 포트, 프로토콜 |
-| Sysmon EventId 11 (File Create) | 모든 행 | 생성 프로세스, 대상 파일 경로 |
-| Sysmon EventId 22 (DNS Query) | 모든 행 | 쿼리 이름·결과, DNS 노드 |
-| 기타 RECmd/Amcache 출력 등 | 파일 목록·해시만 | 미지원으로 표시, 내용 파싱하지 않음 |
+| A0 준비 | 진행 중 | 코드·버전/해시 준비 완료. 실제 계정·프로필·배포 역할·AMI·리전 견적 확인 필요 |
+| A1 기반 인프라 | 미배포 | 두 계정·VPC·SG·TLS·IAM·감사·SSM 실제 동작 |
+| A2 서비스 | 미배포 | WordPress·DVWA·RDS 초기화 및 정상 요청·DB 권한 검증 |
+| A3 관제 | 로컬 부분 검증 | AWS 로그 원본↔SIEM 대조, Agent 등록·이벤트, WAF/IPS/경보 검증 |
+| A4 증거 수집 | 로컬 부분 검증 | AWS 경보→사건→수집→manifest/해시→반출 실증 |
+| A5 Atlas 연동 | 초기 가져오기 | AWS/Linux/RDS 자원·IAM/STS 세션 관계와 자동 전달 개발·검증 |
+| A6 대응·복구 | runbook 설계 | 격리·권한 제한·복구 실행기와 실제 효과 검증 |
+| A7 평가·종료 | 미완료 | AI 평가, 통합 데모·보고서, 증거 보존·AWS 자원 정리 |
 
-폴더 이름이 아닌 CSV 헤더로 어댑터를 선택합니다. 원시 EVTX/PF/레지스트리 하이브는 직접 파싱하지 않습니다. EvtxECmd의 `Payload`는 이름이 붙은 EventData를 담은 JSON 형태를 지원합니다. 다른 출력 형식은 어댑터 확장이 필요합니다.
+A0~A7을 완료 처리하려면 해당 실측 근거가 필요합니다. S0~S6은 준비·수락 검사이고 [추가 시나리오 36개](cloud-lab/scenarios/SCENARIO_LIBRARY.md)는 별도 실험 명세입니다. 36개 자동 공격 스크립트가 구현된 상태가 아닙니다.
 
-## 관계의 의미
+## 검증 기록
 
-- 프로세스 인스턴스는 개별 생성 레코드로 식별합니다. CSV의 이벤트 발생 주체 `ProcessId`, EventData의 생성 주체 `ProcessId`, 새 프로세스 `NewProcessId`를 구분합니다.
-- 부모 PID는 `ProcessReference`로 남깁니다. PID 재사용과 생존 구간을 확인할 자료가 부족하므로 다른 실행과 자동 병합하지 않습니다.
-- C와 VSS2는 별도 수집 범위입니다. 같은 실행 흔적이 두 범위에 있어도 두 관찰의 출처를 유지합니다. 관찰 개수는 고유 실행 횟수와 다릅니다.
-- `FilePath`는 경로 참조이고 파일 내용의 동일성을 보장하지 않습니다. PECmd `Hash`는 Prefetch 식별에 쓰는 값이며 실행 파일 SHA-256이 아닙니다.
-- 4104는 스크립트 블록 조각 기록입니다. 각 문장의 실행을 입증하거나 완전한 스크립트로 재조립하지 않습니다.
-- Prefetch와 4688 사이에 이름·시각이 유사하다는 이유만으로 동일 프로세스 관계를 만들지 않습니다. 4688·Amcache·ShimCache·UserAssist·바로가기의 **같은 호스트·정규화 경로 참조**를 통해 자료 간 이동을 지원합니다. 같은 경로라도 다른 시점에 내용이 바뀔 수 있으며 수집 범위도 반드시 대조해야 합니다.
-- BAM의 `\\Device\\HarddiskVolumeN`을 임의로 C:에 매핑하지 않습니다. 볼륨 대응이 없는 경로와 UserAssist의 GUID/셸 식별자는 미확정 참조로 남습니다. RECmd 상세 파일의 C/VSS 범위는 요약 CSV의 `PluginDetailFile → HivePath` 연결이 유일할 때만 확인하며 연결한 요약 파일·행 번호를 출처에 기록합니다.
-- Amcache 항목은 각 원래 레코드별로 보존합니다. 보고된 SHA1은 독립적으로 검증한 전체 파일 해시가 아닙니다. Amcache 키 기록·ShimCache 파일 수정·바로가기에 저장된 대상 시각을 실행 시각으로 표시하지 않습니다.
-- 의미 관계에는 `evidence_id`가 붙고, 파일 구조 관계에는 출처 ID가 붙습니다. 논리 레코드 번호는 헤더를 제외한 CSV 행 순번이며 여러 줄 필드가 있어도 하나로 셉니다.
-- Prefetch 근거 화면의 CSV 대표 시각은 `LastRun`입니다. 특정 과거 관찰 시각은 노드를 열어 `slot`과 `time_raw`를 보고 해당 `PreviousRunN` 원래 값과 대조하세요. 원래 시각의 100ns 자릿수는 보존하고, UTC 정규화에서 마이크로초 이하 절삭 여부를 기록합니다.
+| 기록 | 확인한 내용 |
+|---|---|
+| [2026-09-16 최신 수정·검증](cloud-lab/results/SCENARIO_FIXES.md) | 151개 테스트, 실제 ES 검색·집계, Fleet URL 저장, 지속성 원본 ZIP |
+| [정적·회귀 원자료](cloud-lab/results/scenario-fix-validation.json) | cloud-lab 72개 및 OpenTofu 검사 출력 |
+| [실제 서비스 원자료](cloud-lab/results/scenario-service-validation.json) | 격리된 ES/Kibana·Velociraptor 검사 결과 |
+| [2026-09-15 기준선](cloud-lab/results/LOCAL_VALIDATION.md) | 당시 142개 테스트, WAF/웹/DB·SIEM·ZIP→Atlas 검사와 한계 |
+| [로컬 재현 절차](cloud-lab/LOCAL_DEVELOPMENT.md) | 의존성, 검사 명령, 서비스 리허설 전제 |
 
-기록된 관계는 공격 판정이나 인과 확정이 아닙니다. 선택적 로컬 AI는 조회된 근거를 인용한 가설만 제안합니다. 데이터 안의 명령문이나 스크립트는 실행하지 않습니다.
+실제 AWS IAM/KMS·교차 계정 권한·로그 전달, Agent 커널 이벤트, Suricata 실제 drop은 AWS 수락 검사로 남아 있습니다. 단순 HTTP 응답이나 룰 매칭을 침해 성공·차단 성공·분석 정확도의 증명으로 취급하지 않습니다.
 
-## 이 수집본의 검증 결과
+## 문서와 디렉터리
 
-2026-09-09, `D:\KAPE_RESULT` 기준:
+| 경로 | 역할 |
+|---|---|
+| [docs/USAGE.md](docs/USAGE.md) | 시간순 맵·관계 탐색, 가져오기·내보내기, Neo4j/ES/Sigma/AI, 과거 실데이터 검증 |
+| [DESIGN.md](DESIGN.md), [AGENTS.md](AGENTS.md) | 핵심 원칙·확장 계약·개발 규칙 |
+| [cloud-lab/README.md](cloud-lab/README.md) | AWS 구성과 문서 진입점 |
+| [cloud-lab/DEPLOYMENT.md](cloud-lab/DEPLOYMENT.md) | 실제 구현에 맞춘 배포·수락·반출·종료 순서 |
+| [cloud-lab/BUILD_AND_ATTACK.md](cloud-lab/BUILD_AND_ATTACK.md) | 서버/방어 정책·구축 작업·실험 기준 |
+| [cloud-lab/CLOUD_FORENSICS.md](cloud-lab/CLOUD_FORENSICS.md) | IAM·감사·휘발성·증거 수집 설계 |
+| [cloud-lab/OPEN_SOURCE.md](cloud-lab/OPEN_SOURCE.md) | AWS 샘플·OSS 활용 범위와 출처 |
+| [dfir_graph/](dfir_graph/), [tests/](tests/) | Atlas 구현·회귀 검사 |
+| [cloud-lab/siem/README.md](cloud-lab/siem/README.md) | Elastic 설정·로그 파서·13개 경보 규칙의 범위 |
 
-| 항목 | 결과 |
-|---|---:|
-| 입력 파일 목록·SHA-256 | 225개 |
-| 파싱한 CSV | 27개 |
-| 보존한 CSV 레코드 | 168,537개 |
-| 프로세스 생성 4688 | 120개 |
-| 로그온 성공 / 실패 | 6,067 / 5개 |
-| PowerShell 4104 | 96개 |
-| Prefetch 원래 레코드 / 유효 실행 시각 관찰 | 835 / 3,160개 |
-| Amcache / ShimCache 레코드 | 4,246 / 2,048개 |
-| BAM / UserAssist 레코드 | 504 / 1,408개 |
-| LECmd / JLECmd 레코드 | 186 / 248개 |
-| 그래프 노드 / 관계 | 28,877 / 79,956개 |
-| 시간축 관찰 / 시각 없는 관찰 | 171,360 / 904개 |
-| 반복 가져오기 | 225개 변경 없음, 중복 추가 없음 |
+## 운영 범위
 
-PECmd 오류 63개, Amcache 식별자 없는 행 16개, UserAssist 내부 관리 항목 등은 원래 레코드를 보존하며 실행 주장을 만들지 않습니다. 4688 120개는 CommandLine이 비어 있습니다. 콘솔 오류 패턴 1,566개는 도구 상태이며 공격 건수가 아닙니다. **미지원 178개 파일은 아직 의미 분석되지 않았습니다.**
-
-기존 DB를 `data/sba-before-artifacts-20260909.sqlite`에 백업하고 확장했습니다. 기존 159,897개 레코드의 식별자/원래 값과 225개 출처 해시가 유지됨을 대조했습니다. SQLite 무결성/FK, Neo4j의 전체 노드·관계 식별자와 연결 끝점, 반복 가져오기/재적재를 검증했습니다. 이는 독립 레포 분리 이전 검증 기록입니다. 현재 KAPE 확인 대상은 독립 레포의 **sba.sqlite / 8771**입니다.
-
-## 테스트와 운영 한계
-
-```powershell
-python -m unittest discover -s tests -v
-python scripts/verify_live.py --db data/sba.sqlite --reload
-```
-
-단위 테스트는 반복 적재, 파일 단위 실패/재시도, PID 의미, 공급자별 Event ID 충돌, VSS 분리, Prefetch 오류, 시간대/정밀도, 출처 보존, 사건 분리와 출력 경로를 검증합니다. 실데이터는 파일별 트랜잭션으로 처리하며 실패한 파일만 재시도합니다. 입력 내용이 바뀌면 새 해시의 자료 버전으로 추가됩니다. 기존 버전이나 다른 경로의 중복 수집본을 자동 삭제·병합하지 않습니다.
-
-75개 테스트가 통과했습니다. 새 검증에는 그래프 사건/범위 격리, 표시 상한, ES 사건 ID 충돌, 부분 저장 실패, 대량 배치와 ECS 시각 의미, Sigma 값 매칭·조건 평가·스캔 통합·멱등성이 포함됩니다. 추가 테스트는 새 어댑터의 원래 행 보존, C/VSS 연결 근거, 임의 드라이브 변환 방지, 자료 간 경로 연결, 파일 시각 의미, 근거 묶음 사건 분리, AI 인용 검증과 보고서 이스케이프를 확인합니다. 브라우저에서 새 아티팩트 상세와 분석 보조 탭을 확인했습니다.
-
-시간순 맵은 해당 기간 전체를 집계하고 개별 기록은 페이지로 제공합니다. 관계 지도는 기본 노드 100개/관계 180개, 기존 CLI 1홉 조회는 관계 150건, 처리 상태 창은 200건까지 표시하므로 전체 질의에는 CLI/Cypher를 사용할 수 있습니다. 본문 전체 검색, 사건별 접근 제어, 다중 사용자 인증과 분석 주석 저장은 아직 없습니다. 본인 PC의 신뢰하는 계정에서 사용하는 도구입니다. 그래프 참조를 함께 쓰는 기록도 같은 사건으로 제한합니다.
-
-## Elasticsearch 동기화 검증
-
-```powershell
-python -m dfir_graph --db data/attack-samples.sqlite es-sync
-python -m dfir_graph --db data/attack-samples.sqlite es-status --case EVTX-ATTACK-SAMPLES
-```
-
-2026-09-09 실제 로컬 ES에서 출처 1 / 레코드 37,357 / 노드 325 / 관계 736 / 이슈 84가 SQLite 집계와 일치하고, 원래 CSV 레코드 조회도 일치함을 확인했습니다. 새 인덱스명은 정확한 사건 ID의 SHA-256을 포함해 대소문자·기호·Unicode·긴 ID의 slug 충돌을 방지합니다. 구 인덱스는 보존하며 SQLite 원본은 변경하지 않습니다.
-
-Kibana의 **Evidence Atlas Records**는 `ea-current-records` 별칭을 사용합니다. `ea-records-*`를 그대로 쓰면 보존한 구 인덱스와 새 인덱스가 중복 집계될 수 있습니다. 현재 데이터 뷰는 이름과 ID를 유지한 채 별칭으로 전환했습니다. 새 사건 동기화도 이 별칭에 추가됩니다. 부분 실패는 명령 실패로 처리하고, 같은 `es-sync`를 재실행할 수 있습니다. 새 동기화는 1,000문서씩 처리하지만 ES 전체 작업의 원자성은 보장하지 않습니다.
-
-기존 8769 뷰어가 구 저장소에서 실행 중임을 정적 파일의 일치로 확인했습니다. 새 DB와 집계·출처 해시를 대조한 후 독립 저장소에서 재시작했고, 현재 8769의 정적 파일 및 그래프 API가 새 코드와 일치합니다. 8771은 SBA KAPE 자료의 검증 뷰어입니다.
-
-설치용 wheel을 별도 임시 디렉터리에서 빌드하고 그래프 JS/CSS와 라이브러리·라이선스 포함을 확인했습니다.
-
-정적 그래프 라이브러리는 Cytoscape.js 3.34.3(MIT)을 로컬에 포함했습니다. 패키지/페이지 실행 시 CDN에서 코드를 받지 않습니다. 출처·무결성은 DESIGN.md 5.2.4에 기록했습니다.
-
-## Sigma 규칙 매칭
-
-```powershell
-python -m dfir_graph --db data/attack-samples.sqlite sigma-scan --rules vendor/sigma/rules/windows
-python -m dfir_graph --db data/attack-samples.sqlite sigma-stats
-python -m dfir_graph --db data/attack-samples.sqlite sigma-list --level high --limit 20
-```
-
-SigmaHQ의 Windows 규칙(process_creation, ps_script, security)을 SQLite 레코드에 직접 매칭합니다. 결과는 `detections` 테이블에 저장하며 멱등 실행(재스캔 시 중복 없음)입니다. 매칭 결과는 **탐지 후보**이지 공격 확정이 아닙니다. 각 탐지에 `basis: "sigma_rule:{rule_id}"`와 매칭된 필드, ATT&CK 태그가 포함됩니다. 뷰어 API `/api/detections`와 `/api/detections/stats`로도 조회할 수 있습니다.
-
-2026-09-09 EVTX-ATTACK-SAMPLES 검증: 1,494개 규칙 로딩, 134개 대상 레코드 → 125개 탐지 (critical 1, high 73, medium 40, low 11, 39개 고유 규칙). Credential Dumping, Pass the Hash, PowerShell 악용, WMI 실행 등 주요 공격 기법이 탐지되었습니다.
-
-## 남은 개발 범위
-
-- MFT/USN의 선택적 시간축 투영. 파이프라인 통합과 디스크 인덱스·검색 API는 구현했으나, 실제 MFT 190만 행 규모의 전량 그래프 노드화 전에 저장 공간과 탐색 성능을 검증해야 합니다.
-- Phase 4의 미구현 소스: WEF, Linux auditd, Zeek 로그.
-- 명시적인 볼륨·프로필 매핑, 반복 파서 출력의 중복 후보 표시, 프로세스 생존 구간을 이용한 부모 후보 검토.
-- 설치된 로컬 모델의 실제 추론과 정답 사건셋 평가. 근거 인용 검증과 분석 품질 평가는 별개입니다.
-- Sigma 매칭 결과의 뷰어 UI 통합 (시간축/그래프에서 탐지 하이라이트), 오탐 평가 워크플로.
-- Phase 5: 다중 호스트 상관 분석 (횡이동 추적, 네트워크 연결 상관).
-
-해시는 **받은 CSV/TXT의 무결성**을 추적합니다. 원래 디스크 이미지·EVTX·PF의 취득 무결성이나 법적 증거 보관 절차를 대신하지 않습니다. 소스 코드와 생성한 증거 데이터, 접속 정보는 디렉터리와 Git 제외 규칙으로 분리했습니다.
-
-## 구현 참고
-
-- [SigmaHQ Rules](https://github.com/SigmaHQ/sigma)
-- [Cytoscape.js](https://js.cytoscape.org/)
-- [Kibana 데이터 뷰 갱신 API](https://www.elastic.co/docs/api/doc/kibana/v8/operation/operation-updatedataviewdefault)
-
-- [EvtxECmd](https://github.com/EricZimmerman/evtx), [PECmd](https://github.com/EricZimmerman/PECmd)
-- [AmcacheParser](https://github.com/EricZimmerman/AmcacheParser), [RECmd](https://github.com/EricZimmerman/RECmd), [LECmd](https://github.com/EricZimmerman/LECmd), [JLECmd](https://github.com/EricZimmerman/JLECmd)
-- [Ollama 구조화 출력](https://docs.ollama.com/capabilities/structured-outputs), [로컬 생성 API](https://docs.ollama.com/api/generate)
-- [Microsoft 4688 필드 설명](https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4688)
-- [Neo4j MERGE](https://neo4j.com/docs/cypher-manual/current/clauses/merge/), [Python 드라이버 배치 적재](https://neo4j.com/docs/python-manual/current/performance/)
+- 원래 값과 해시·출처를 보존하고, `time_kind`와 사건·호스트·수집 범위를 구분합니다. CSV 해시는 원래 디스크 취득 무결성이나 전체 증거 보관 절차를 대신하지 않습니다.
+- AI는 선택적 로컬 Ollama 가설 생성입니다. 근거 식별자를 검증하지만 판단 정확도를 보장하지 않으며 차단 도구를 제공하지 않습니다.
+- 로컬 뷰어는 루프백에서 사용합니다. 다중 사용자 인증·사건별 접근 제어는 구현하지 않았습니다.
+- AWS 실험은 소유한 격리 환경에서만 수행합니다. 기본 WAF는 ModSecurity/CRS이고 AWS WAF는 꺼져 있습니다.
+- 총 AWS 예산 목표는 **$300**이며 확정 견적이 아닙니다. `idle`은 NAT/Endpoint 제거 모드로 **EC2·RDS를 중지하지 않습니다**. 중지·삭제·잔여 비용은 배포 문서에서 별도로 확인합니다.

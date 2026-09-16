@@ -18,6 +18,8 @@ Evidence Atlas는 KAPE/EvtxECmd 등의 CSV 출력을 파싱하여 원본을 보�
 
 ## 3. 현재 진행 상태
 
+진행 상태의 단일 출처는 루트 `README.md`다. 상세 실행 안내는 `docs/USAGE.md`, AWS 배포 기준은 `cloud-lab/DEPLOYMENT.md`, 최신 검증은 `cloud-lab/results/SCENARIO_FIXES.md`를 따른다. 과거 개발 PC 기록을 새 clone의 제공 데이터나 현재 실행 상태로 취급하지 않는다.
+
 | Phase | 상태 | 핵심 파일 |
 |-------|------|----------|
 | Phase 1: ES 백엔드 | 동기화·조회 완료 / ES 뷰어 전환 미완료 | `es_store.py`, `es_mappings.py` |
@@ -25,6 +27,8 @@ Evidence Atlas는 KAPE/EvtxECmd 등의 CSV 출력을 파싱하여 원본을 보�
 | Phase 3: Sigma 매칭 | ✅ 구현·검증 완료 | `sigma_engine.py`, `tests/test_sigma.py` |
 | Phase 4: 다중 소스 | 어댑터 추가 / 통합 오류 보완 필요 | `adapters.py` (Sysmon/SRUM), `pipeline.py` (MFT/USN), `tests/test_phase4.py` |
 | Phase 5: 다중 호스트 | 미착수 | — |
+
+AWS 코드·로컬 검증은 진행되었으나 AWS는 미배포다. Atlas 연동은 초기 오프라인 cloud-import이며 자원/IAM·STS 관계 모델·자동 대응은 미완료다. 2026-09-16 검사 기록은 cloud-lab 72개 + Atlas 79개 = 151개다.
 
 ## 4. 교차 개발 (Claude ↔ Codex)
 

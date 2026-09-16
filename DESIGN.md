@@ -2,7 +2,8 @@
 
 > **목적**: 이 문서는 Evidence Atlas의 현재 아키텍처, 핵심 설계 원칙, 확장 방향을 기술한다.
 > 협업하는 AI(Claude, Codex, GPT 등)가 코드를 수정하거나 새 기능을 구현할 때 이 문서를 기준으로 판단한다.
-> **최종 갱신**: 2026-09-09 · **현재 버전**: 0.2.0
+> **최종 갱신**: 2026-09-16 · **현재 버전**: 0.2.0
+> 현재 진행 상태의 단일 출처는 [README.md](README.md)다. 아래 초기 구조·실데이터 수치는 당시 기준선이며, 이후 구현 범위는 섹션 5~6을 따른다.
 
 ---
 
@@ -70,7 +71,9 @@ time_kind 13종:
 
 ---
 
-## 3. 현재 아키텍처 (AS-IS v0.2.0)
+## 3. 초기 아키텍처 기준선 (확장 전 v0.2.0)
+
+이 절은 초기 KAPE 구조와 당시 데이터 규모를 보존한다. 현재는 ES 투영, 그래프 UI, Sigma, Sysmon/SRUM, MFT/USN 인덱스, cloud-import 코드가 추가되었다. MFT 검색 통합과 AWS 관계 분석은 미완료다. 현재 사용법은 [docs/USAGE.md](docs/USAGE.md)를 따른다.
 
 ### 3.1 모듈 구조
 
@@ -223,7 +226,9 @@ other              | evtx_other                        | #90a4ae
 
 ---
 
-## 4. 약점 분석 (솔직한 현재 한계)
+## 4. 확장 전 약점 분석 (당시 기준선)
+
+아래 표는 확장을 시작한 이유다. 그래프 UI·Sigma 매칭·ES 투영은 이후 구현되었으므로 현재 미구현 목록으로 읽지 않는다. 남은 범위는 README와 섹션 5~6에 기록한다.
 
 | 영역 | 한계 | 영향 |
 |------|------|------|
@@ -389,7 +394,7 @@ Evidence Atlas 고유 필드와 ECS(Elastic Common Schema)를 **병행**한다. 
 - 노드·선 선택으로 time_kind, 원본 CSV, 논리 레코드 번호, SHA-256 확인. 관찰에서 시간축 복귀, 중심 변경/이전 중심, 키보드용 목록 탐색을 지원한다. 시각 미확정 관찰은 시간축 복귀 버튼을 비활성화한다.
 - Cytoscape.js **3.34.3**, MIT, npm 배포 SHA-512 검증 후 로컬 번들로 포함. CDN 요청 없음. 번들 SHA-256: `5f3b5b529546d5af1fc5628590af033b74511a5b6f789f5f4682845863228b91`.
 - 30개 테스트, 실제 SBA 브라우저 흐름, ES 공격 샘플 37,357행의 표별 집계 일치와 원본 레코드 왕복 확인. 그래프 조회는 SQLite를 읽기 전용으로 연다.
-- Sysmon 등 아직 의미 해석하지 않는 `evtx_other`에는 그래프 연결을 만들어내지 않는다. 원본 및 시간축은 제공하며 미지원 안내를 표시한다.
+- 아직 의미 해석하지 않는 `evtx_other`에는 그래프 연결을 만들어내지 않는다. Sysmon 1/3/11/22 어댑터는 이후 추가되었으며, 과거 DB의 `evtx_other` 행이 자동 재해석된다는 뜻은 아니다.
 
 ### 5.3 Phase 3: Sigma 규칙 매칭 ✅ 구현·검증 완료 (2026-09-09)
 
@@ -457,7 +462,7 @@ KAPE CSV에 더해 아래 소스를 단계적으로 추가한다.
 
 | 우선순위 | 소스 | 어댑터 이름 | 비고 |
 |---------|------|-----------|------|
-| 1 | MFT/USN (MFTECmd 출력) | mftecmd_mft, mftecmd_usn | ✅ pipeline 통합, classify + fs CLI/API |
+| 1 | MFT/USN (MFTECmd 출력) | mftecmd_mft, mftecmd_usn | pipeline 저장·CLI/API 코드 추가, 소스 상태 불일치로 검색 통합 미완료 |
 | 2 | Sysmon EVTX (EvtxECmd 출력) | evtxecmd (기존 확장) | ✅ EventId 1,3,11,22 추가 |
 | 3 | SRUM/SUM (SrumECmd 출력) | srum_network, srum_app | ✅ 네트워크 사용량·앱 실행 이력 |
 | 4 | Windows Event Forwarding | wef_evtx | 다중 호스트 수집 (미구현) |
@@ -481,7 +486,7 @@ KAPE CSV에 더해 아래 소스를 단계적으로 추가한다.
 
 **Sigma 매칭 확장**: Sysmon 이벤트 4종에 대한 필드 매핑 추가. `network_connection`, `file_event`, `dns_query` 로그소스 카테고리 지원.
 
-**검증**: 75개 단위 테스트 통과 (기존 54 + Phase 4 신규 21). 추가 통합 재현에서 Sysmon Event ID 1의 시간축 생성이 `KeyError: sysmon_process_create`로 실패했고, MFT 1행의 상태가 `complete`인데 FileIndex는 `indexed`만 읽어 소스가 검색되지 않았다. 따라서 이 단계 전체 완료 표시는 보류한다. 새 kind의 시간축·프론트엔드·Neo4j 투영 연결과 파일 인덱스 상태를 우선 보완해야 한다.
+**검증**: 2026-09-09에는 75개 테스트가 통과했지만 별도 통합 재현에서 Sysmon 시간축 오류와 MFT 검색 오류가 확인되었다. 2026-09-16에는 새 kind의 시간축 fallback과 cloud-import를 보완한 Atlas 79개 테스트가 통과했다. MFT/USN은 pipeline이 `complete`로 저장하고 FileIndex는 `indexed`만 조회하는 불일치가 남아 검색 통합이 미완료다. 새 소스의 전용 표시·관계 탐색 검증도 구분하며 Phase 4 전체를 완료 처리하지 않는다.
 
 #### 새 어댑터 작성 규칙
 
@@ -538,7 +543,7 @@ def ingest_새어댑터(projection, rows, options):
   LATERAL_CANDIDATE  — 횡이동 후보 (확정 아님, basis 명시)
 ```
 
-### 5.6 AWS 관제·포렌식 자동화 실습 — 설계 단계
+### 5.6 AWS 관제·포렌식 자동화 실습 — 로컬 구현·검증, AWS 미배포
 
 AWS 실습 인프라와 Evidence Atlas 연동 작업은 모두 이 evidence-atlas 저장소에서 관리한다. siem-project는 이전 SIEM 실습 저장소이며 새 AWS·포렌식 작업 경로로 사용하지 않는다.
 
@@ -546,9 +551,9 @@ AWS 실습 인프라와 Evidence Atlas 연동 작업은 모두 이 evidence-atla
 - 상세 인프라·증거 파이프라인: [cloud-lab/CLOUD_FORENSICS.md](cloud-lab/CLOUD_FORENSICS.md).
 - 실제 구축·공격·로그 생성 절차: [cloud-lab/BUILD_AND_ATTACK.md](cloud-lab/BUILD_AND_ATTACK.md). B00~B14 작업과 S0~S6 실험, 산출물·완료 기준을 정의한다.
 - 오픈소스 채택·고정 커밋 검토: [cloud-lab/OPEN_SOURCE.md](cloud-lab/OPEN_SOURCE.md).
-- A0 생성 예정: cloud-lab/toolchain.lock.json, cloud-lab/THIRD_PARTY_NOTICES.md. 버전·해시·라이선스 확인 후 작성한다.
+- 버전·해시·라이선스 기록: cloud-lab/toolchain.lock.json, cloud-lab/artifacts.lock.json, cloud-lab/THIRD_PARTY_NOTICES.md. 파일은 생성되었으며 실제 계정·리전·견적 확인은 배포 전 별도 작업이다.
 - 계획 갱신: WordPress/RDS·DMZ·WAF·Suricata IPS·Elastic endpoint·중앙 로그부터 구축한다. DVWA/CloudGoat 실제 공격·SIEM 검증 후 AWS/Linux 증거와 Atlas를 연결한다. OpenTofu·Velociraptor·Sigma 등 OSS를 활용하며 Windows는 후속 선택이다. 구현·배포 완료를 의미하지 않는다.
-- 생성 예정 구성: cloud-lab/infra, bootstrap, application, collectors, playbooks, scenarios, scripts, tests, results. 상세 파일 배치는 cloud-lab/DESIGN.md 섹션 12를 따른다.
+- 코드·문서 구성: cloud-lab/infra, bootstrap, application, collectors, playbooks, scenarios, scripts, tests, results. 상세 파일 배치는 cloud-lab/DESIGN.md 섹션 12를 따른다. 디렉터리 존재는 예정 기능 전체 완료를 의미하지 않는다.
 - Atlas 코어 변경: dfir_graph와 tests에서 구현하며, 새 모듈·어댑터·CLI의 세부 계약은 구현 전에 이 섹션에 추가한다.
 - 진행 상황의 출처: 이 저장소 README의 AWS A0~A7 체크리스트.
 - 현재 상태: 5.7의 배포 전 코드를 구현하고 로컬 회귀·Linux 서비스 검증을 완료했다. AWS 리소스와 자동화는 아직 배포하지 않았다. Atlas AWS 분석은 검증된 증거 묶음의 초기 오프라인 가져오기에 한정된다.
@@ -575,6 +580,12 @@ AWS 실습 인프라와 Evidence Atlas 연동 작업은 모두 이 evidence-atla
 
 기존 cloud-lab 구현을 보완한다. 새 파일은 `infra/foundation/scenario_data.tf`(합성 S3 자료), `infra/lab/rds_key.tf`(RDS 전용 키), `scripts/scenario_records.py`(실행 원기록→정답), `scenarios/catalog.json`(36개 준비 조건), `tests/test_scenario_contracts.py`(계약 회귀), `local/rehearse_scenarios.py`(실제 ES/Velociraptor 검사), `results/SCENARIO_REVIEW.md`·`SCENARIO_FIXES.md`(근거·반영)다. 경보는 조사 후보이며 인과를 확정하지 않는다. 미구현 공격·대응 실행기를 준비 완료로 표시하지 않는다.
 
+### 5.9 README와 사용 문서 구성 — 2026-09-16
+
+- `README.md`: 현재 목적·실행 진입점·검증 범위·Atlas Phase 1~5 및 AWS A0~A7 진행 상태의 단일 출처.
+- `docs/USAGE.md`: 기존 README의 상세 조회·수집·선택 기능 사용법과 날짜가 명시된 과거 검증 기록을 보존한다. 개인 PC 데이터·서비스는 새 clone에 포함되지 않는다.
+- `cloud-lab/README.md`, `cloud-lab/siem/README.md`: AWS와 SIEM의 현재 코드 범위 및 배포 수락 조건을 안내한다. 최신 결과를 먼저 연결하며 과거 검증을 현재 완료로 덮어쓰지 않는다.
+
 ## 6. 구현 우선순위와 의존 관계
 
 ```
@@ -584,9 +595,9 @@ Phase 1: Elasticsearch 동기화·조회          구현 (ES 뷰어 전환은 �
     │
     ├──→ Phase 3: Sigma 규칙 ✅ 구현·검증 완료
     │
-    └──→ Phase 4: 다중 데이터 소스 ✅ 구현·검증 완료
+    └──→ Phase 4: 다중 데이터 소스 — 어댑터 추가, 검색·통합 보완 필요
               │
-              └──→ Phase 5: 다중 호스트 상관 (Phase 4 완료 — 다음 단계)
+              └──→ Phase 5: 다중 호스트 상관 (미착수)
 ```
 
 **Phase 1의 동기화·조회 구현**: `es_store.py` + `es_mappings.py` 구현, SQLite→ES 동기화, ECS 필드 매핑, CLI 명령 3종 추가. Kibana에서 데이터 뷰 조회 확인 완료.
@@ -595,7 +606,7 @@ Phase 1: Elasticsearch 동기화·조회          구현 (ES 뷰어 전환은 �
 
 **Phase 3 (Sigma 매칭)**은 `sigma_engine.py`로 구현했다. 1,494개 규칙 로딩, process_creation/ps_script/security 로그소스 지원, 공격 샘플 134건에서 125건 탐지 (39개 고유 규칙).
 
-**Phase 4 (다중 소스)**는 우선순위 1~3 구현 완료. MFT/USN 파이프라인 통합, Sysmon EVTX 4종(EventId 1,3,11,22), SRUM 네트워크/앱 어댑터. Sigma 매칭도 Sysmon 이벤트까지 확장. 다음은 Phase 5 다중 호스트 상관이다.
+**Phase 4 (다중 소스)**는 MFT/USN 저장, Sysmon EVTX 4종(EventId 1,3,11,22), SRUM 어댑터와 Sigma 필드 매핑을 추가했다. Sysmon 시간축 fallback은 보완했지만 MFT 검색의 소스 상태 불일치가 남아 있다. 통합 완료 검증 후 Phase 5 다중 호스트 상관으로 진행한다.
 
 ---
 
@@ -635,7 +646,7 @@ cd C:\Users\SBA_USER\Desktop\evidence-atlas
 python -m unittest discover -s tests -v
 ```
 
-현재 75개 테스트 통과. 새 기능 추가 시 반드시 테스트를 함께 작성한다.
+2026-09-16 기록: Atlas 79개 + cloud-lab 72개 = 151개 통과. 이 절의 명령은 Atlas 테스트만 실행한다. AWS 검사·서비스 리허설의 범위와 한계는 [최신 검증 기록](cloud-lab/results/SCENARIO_FIXES.md)을 따른다. 단위 테스트 통과가 알려진 통합 미완료나 실제 AWS 수락 검사를 대신하지 않는다.
 
 테스트 범위:
 - 반복 적재 시 중복 없음
@@ -663,7 +674,7 @@ python -m unittest discover -s tests -v
 | `model.py`, `store.py`, `adapters.py`, `pipeline.py` | Codex | 원본 코어. 인터페이스 변경 시 양쪽 합의 |
 | `timeline.py`, `viewer.py`, `analysis.py` | Codex | 뷰어/분석 레이어 |
 | `neo4j_io.py` | Codex | Neo4j 투영 |
-| `filesystem.py` | Codex | MFT/USN, pipeline 미연결 |
+| `filesystem.py` | Codex | MFT/USN 저장 연결됨, 검색 소스 상태 불일치 보완 필요 |
 | `es_store.py`, `es_mappings.py` | Codex (Claude 원본) | ES 동기화 오류·사건 격리 보완, 2026-09-09 |
 | `__main__.py` | 공동 | CLI 진입점. 서브커맨드 추가만, 기존 인터페이스 불변 |
 | `static/*` | Codex | 프론트엔드 |
@@ -725,7 +736,9 @@ Cypher 예시:       queries/investigate.cypher
 
 ---
 
-## 12. 개발 환경 현황 (2026-09-09 세팅 완료)
+## 12. 개발 환경 기록 (2026-09-09 당시)
+
+이 절의 실행 서비스·모델·디스크 용량·데이터 수치는 당시 개발 PC 기록이다. 새 clone의 제공 데이터나 현재 실행 상태가 아니며, AWS SOC의 버전은 `cloud-lab/artifacts.lock.json`과 `cloud-lab/DEPLOYMENT.md`를 따른다.
 
 ### 12.1 인프라 서비스
 
@@ -797,7 +810,7 @@ cd C:\Users\SBA_USER\Desktop\evidence-atlas
 | `dfir_graph/__main__.py` | **✅ 수정** | `es-sync`, `es-status`, `es-search`, `sigma-scan`, `sigma-stats`, `sigma-list` CLI 명령 추가 |
 | `dfir_graph/sigma_engine.py` | **✅ 완료** | Sigma YAML 로딩 + 필드 매핑 + 조건 평가 + SQLite 매칭 (Phase 3) |
 | `dfir_graph/static/graph.js` | **✅ 완료** | 로컬 Cytoscape 관계 지도·근거·시간축 이동 (Phase 2) |
-| `dfir_graph/filesystem.py` | **미통합** | MFT/USN 인덱스 구현됨, pipeline.py에 연결 안 됨 |
+| `dfir_graph/filesystem.py` | **부분 통합** | pipeline 저장 연결됨, 검색의 complete/indexed 상태 불일치 보완 필요 |
 
 ### 12.9 ES 인덱스 현황 (2026-09-09 동기화 완료)
 

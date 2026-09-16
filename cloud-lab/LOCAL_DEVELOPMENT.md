@@ -9,11 +9,12 @@
 ```powershell
 python -m venv .runtime/dev-venv
 .runtime/dev-venv/Scripts/python.exe -m pip install -r cloud-lab/requirements-dev.txt
-.runtime/dev-venv/Scripts/python.exe -B -X utf8 cloud-lab/scripts/validate_local.py --tofu .runtime/opentofu/tofu.exe --bash "C:/Program Files/Git/bin/bash.exe" --report cloud-lab/results/local-validation.json
+$tofuPath = (Resolve-Path .runtime/opentofu/tofu.exe).Path
+.runtime/dev-venv/Scripts/python.exe -B -X utf8 cloud-lab/scripts/validate_local.py --tofu $tofuPath --bash "C:/Program Files/Git/bin/bash.exe" --report .runtime/local-validation.json
 .runtime/dev-venv/Scripts/python.exe -B -X utf8 -m pytest -p no:cacheprovider -q tests
 ```
 
-`--tofu`는 **절대 경로**로 지정한다(위 상대 표기는 설치 위치 설명용이므로 실제 실행 전에 절대 경로로 치환). 검증기는 임시 복사본에서 provider init/backend 비활성·validate·Python/Bash/렌더링·Lambda ZIP 검사를 실행한다. 최초 provider 다운로드는 필요하지만 AWS 인증/API/backend를 사용하지 않는다. 기존 state/tfvars/backend/증거는 복사하지 않는다. `.terraform.lock.hcl`은 커밋하고 state는 제외한다.
+OpenTofu를 `.runtime/opentofu/tofu.exe`에 별도 설치하거나 `$tofuPath`를 실제 설치 파일의 **절대 경로**로 바꾼다. 위 명령은 개인 재실행 결과를 `.runtime`에 남겨 커밋된 과거 검증 기록을 덮어쓰지 않는다. 검증기는 임시 복사본에서 provider init/backend 비활성·validate·Python/Bash/렌더링·Lambda ZIP 검사를 실행한다. 최초 provider 다운로드는 필요하지만 AWS 인증/API/backend를 사용하지 않는다. 기존 state/tfvars/backend/증거는 복사하지 않는다. `.terraform.lock.hcl`은 커밋하고 state는 제외한다.
 
 ## 실제 서비스 리허설
 
