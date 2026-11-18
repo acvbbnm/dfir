@@ -6,7 +6,7 @@
 
 Evidence Atlas는 KAPE/EvtxECmd 등의 CSV 출력을 파싱하여 원본을 보존하면서 관계 그래프와 시간축으로 탐색하는 DFIR 분석 도구다.
 
-- **GitHub**: https://github.com/sasumm25-lab/dfir
+- **GitHub**: https://github.com/acvbbnm/dfir
 - **설계서**: `DESIGN.md` — 반드시 먼저 읽을 것
 
 ## 2. 핵심 원칙 (변경 불가)
@@ -17,6 +17,8 @@ Evidence Atlas는 KAPE/EvtxECmd 등의 CSV 출력을 파싱하여 원본을 보�
 4. **수집 범위 분리** — C/VSS 독립 보존
 
 ## 3. 현재 진행 상태
+
+프로젝트 소개는 `README.md`, 진행 상태의 단일 출처는 `DEVELOPMENT.md`다.
 
 | Phase | 상태 | 핵심 파일 |
 |-------|------|----------|

@@ -3,7 +3,7 @@
 > **목적**: 이 문서는 Evidence Atlas의 현재 아키텍처, 핵심 설계 원칙, 확장 방향을 기술한다.
 > 협업하는 AI(Claude, Codex, GPT 등)가 코드를 수정하거나 새 기능을 구현할 때 이 문서를 기준으로 판단한다.
 > **최종 갱신**: 2026-09-16 · **현재 버전**: 0.2.0
-> 현재 진행 상태의 단일 출처는 [README.md](README.md)다. 아래 초기 구조·실데이터 수치는 당시 기준선이며, 이후 구현 범위는 섹션 5~6을 따른다.
+> 프로젝트 소개는 [README.md](README.md), 진행 상태의 단일 출처는 [DEVELOPMENT.md](DEVELOPMENT.md)다. 아래 초기 구조·실데이터 수치는 당시 기준선이며, 이후 구현 범위는 섹션 5~6을 따른다.
 
 ---
 
@@ -228,7 +228,7 @@ other              | evtx_other                        | #90a4ae
 
 ## 4. 확장 전 약점 분석 (당시 기준선)
 
-아래 표는 확장을 시작한 이유다. 그래프 UI·Sigma 매칭·ES 투영은 이후 구현되었으므로 현재 미구현 목록으로 읽지 않는다. 남은 범위는 README와 섹션 5~6에 기록한다.
+아래 표는 확장을 시작한 이유다. 그래프 UI·Sigma 매칭·ES 투영은 이후 구현되었으므로 현재 미구현 목록으로 읽지 않는다. 남은 범위는 DEVELOPMENT.md와 섹션 5~6에 기록한다.
 
 | 영역 | 한계 | 영향 |
 |------|------|------|
@@ -555,7 +555,7 @@ AWS 실습 인프라와 Evidence Atlas 연동 작업은 모두 이 evidence-atla
 - 계획 갱신: WordPress/RDS·DMZ·WAF·Suricata IPS·Elastic endpoint·중앙 로그부터 구축한다. DVWA/CloudGoat 실제 공격·SIEM 검증 후 AWS/Linux 증거와 Atlas를 연결한다. OpenTofu·Velociraptor·Sigma 등 OSS를 활용하며 Windows는 후속 선택이다. 구현·배포 완료를 의미하지 않는다.
 - 코드·문서 구성: cloud-lab/infra, bootstrap, application, collectors, playbooks, scenarios, scripts, tests, results. 상세 파일 배치는 cloud-lab/DESIGN.md 섹션 12를 따른다. 디렉터리 존재는 예정 기능 전체 완료를 의미하지 않는다.
 - Atlas 코어 변경: dfir_graph와 tests에서 구현하며, 새 모듈·어댑터·CLI의 세부 계약은 구현 전에 이 섹션에 추가한다.
-- 진행 상황의 출처: 이 저장소 README의 AWS A0~A7 체크리스트.
+- 진행 상황의 출처: 이 저장소 DEVELOPMENT.md의 AWS A0~A7 진행 기록.
 - 현재 상태: 5.7의 배포 전 코드를 구현하고 로컬 회귀·Linux 서비스 검증을 완료했다. AWS 리소스와 자동화는 아직 배포하지 않았다. Atlas AWS 분석은 검증된 증거 묶음의 초기 오프라인 가져오기에 한정된다.
 - 원본·시간 의미·범위 분리·인과 확정 금지·로컬 AI 원칙을 동일하게 적용한다.
 
@@ -580,9 +580,10 @@ AWS 실습 인프라와 Evidence Atlas 연동 작업은 모두 이 evidence-atla
 
 기존 cloud-lab 구현을 보완한다. 새 파일은 `infra/foundation/scenario_data.tf`(합성 S3 자료), `infra/lab/rds_key.tf`(RDS 전용 키), `scripts/scenario_records.py`(실행 원기록→정답), `scenarios/catalog.json`(36개 준비 조건), `tests/test_scenario_contracts.py`(계약 회귀), `local/rehearse_scenarios.py`(실제 ES/Velociraptor 검사), `results/SCENARIO_REVIEW.md`·`SCENARIO_FIXES.md`(근거·반영)다. 경보는 조사 후보이며 인과를 확정하지 않는다. 미구현 공격·대응 실행기를 준비 완료로 표시하지 않는다.
 
-### 5.9 README와 사용 문서 구성 — 2026-09-16
+### 5.9 README와 사용 문서 구성 — 2026-11-18 정리
 
-- `README.md`: 현재 목적·실행 진입점·검증 범위·Atlas Phase 1~5 및 AWS A0~A7 진행 상태의 단일 출처.
+- `README.md`: 프로젝트 목적·산출물·설계 선택·검증 결과·배운 점과 실행 진입점.
+- `DEVELOPMENT.md`: 기존 README의 상세 검증 범위·운영 조건을 보존하며 Atlas Phase 1~5 및 AWS A0~A7 진행 상태의 단일 출처로 사용한다.
 - `docs/USAGE.md`: 기존 README의 상세 조회·수집·선택 기능 사용법과 날짜가 명시된 과거 검증 기록을 보존한다. 개인 PC 데이터·서비스는 새 clone에 포함되지 않는다.
 - `cloud-lab/README.md`, `cloud-lab/siem/README.md`: AWS와 SIEM의 현재 코드 범위 및 배포 수락 조건을 안내한다. 최신 결과를 먼저 연결하며 과거 검증을 현재 완료로 덮어쓰지 않는다.
 

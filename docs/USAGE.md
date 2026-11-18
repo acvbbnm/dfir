@@ -1,6 +1,6 @@
 # Evidence Atlas 상세 사용법
 
-[프로젝트 개요·현재 진행 상태](../README.md) · [설계서](../DESIGN.md) · [AWS 배포 절차](../cloud-lab/DEPLOYMENT.md)
+[프로젝트 개요](../README.md) · [현재 진행 상태](../DEVELOPMENT.md) · [설계서](../DESIGN.md) · [AWS 배포 절차](../cloud-lab/DEPLOYMENT.md)
 
 모든 명령은 저장소 루트에서 실행합니다. `data/`, `.runtime/`, `vendor/`의 수집본·DB·설치 도구·규칙은 Git에 포함되지 않습니다. 아래 SBA/공격 샘플과 PC 접속 주소는 기존 개발 환경의 예시이며 새 clone에서 자동 제공되거나 실행되지 않습니다. 첫 실행은 루트 README의 가져오기 순서를 따르세요.
 
