@@ -1,30 +1,31 @@
 # Evidence Atlas
 
-KAPE가 수집한 Windows 포렌식 기록을 시간축과 관계 그래프로 엮고, 조사 근거를 원래 CSV 행까지 추적하는 도구입니다.
+Windows 포렌식 기록을 시간축에서 따라가고, 실행 흔적 하나를 원본 CSV 행까지 확인하는 조사 도구입니다.
 
-[사용법](docs/USAGE.md) · [설계](DESIGN.md) · [로컬 검증](cloud-lab/results/SCENARIO_FIXES.md)
+개인 프로젝트 · 2026년 9월 로컬 검증 · 수집·저장 모델과 조사 뷰어 설계·구현
 
-![샘플 증거의 Windows 포렌식 시간축](docs/images/readme-timeline.png)
+[실데이터 검증 기록](docs/USAGE.md) · [설계 문서](DESIGN.md) · [로컬 검증 범위](cloud-lab/results/SCENARIO_FIXES.md)
 
-## Windows에서 실행
+![Evidence Atlas 시연 · 샘플 Prefetch 기록을 시간축에서 선택하고 원본 근거를 조회](docs/images/readme-demo.gif)
 
-Python 3.11 이상과 KAPE Modules에서 내보낸 CSV 폴더가 필요합니다. 기본 뷰어는 Python과 SQLite로 실행합니다. 아래 예시의 `D:\KAPE_RESULT`를 실제 CSV 경로로 바꿉니다.
+합성 Prefetch 기록으로 실행 시각과 원본 근거를 확인하는 장면입니다.
 
-~~~powershell
-git clone https://github.com/acvbbnm/dfir.git evidence-atlas
-cd evidence-atlas
-python -m venv .venv
-.\.venv\Scripts\python.exe -m dfir_graph --db data/evidence.sqlite ingest D:\KAPE_RESULT --case CASE-001 --time-zone unknown
-.\.venv\Scripts\python.exe -m dfir_graph --db data/evidence.sqlite stats
-.\.venv\Scripts\python.exe -m dfir_graph --db data/evidence.sqlite serve --port 8765
+## 타임라인과 관계를 만든 기준
+
+~~~mermaid
+flowchart LR
+    A["KAPE Modules CSV"] --> B["아티팩트 파싱 · 파일 SHA-256"]
+    B --> C["SQLite · 원본 행과 관찰 기록"]
+    C --> D["시간축 · 기록 시각과 실행 시각"]
+    C --> E["관계 그래프 · 공유 참조"]
+    D --> F["원본 CSV 행과 연결 근거"]
+    E --> F
 ~~~
 
-브라우저에서 http://127.0.0.1:8765를 열고 실행 흔적을 선택합니다. 같은 파일이나 계정을 가리키는 연결을 따라간 뒤 원본 행과 출처를 확인할 수 있습니다. 출처의 시간대를 확인한 경우 해당 값을 지정하고, 확인 전에는 `unknown`으로 원래 시각을 보존합니다.
+Python으로 아티팩트 형식별 파서를 나누고, SQLite 한 파일에서 출처·원본 행·관찰 기록을 관리했습니다. 시간축과 Cytoscape.js 관계 그래프에서 같은 증거를 조회합니다. 연결에는 공유한 계정이나 경로를 남겨, 조사자가 인과관계를 판단할 때 근거를 다시 확인할 수 있게 했습니다.
 
-## 조사 근거를 남기는 방식
+## Sysmon 기록을 추가하며 발견한 시간축 누락
 
-- 원래 행, 파일 해시, 수집 출처를 SQLite에 보존합니다. 기록 시각과 실행 시각은 다른 종류로 표시합니다.
-- 그래프 연결에는 공유한 경로나 계정 등 연결 근거를 남깁니다. 인과관계는 조사자가 추가 기록으로 검토합니다.
-- Sigma 매칭과 로컬 모델의 가설은 검토 후보입니다. 검색·그래프 연동과 선택 기능은 [상세 사용법](docs/USAGE.md)에 있습니다.
+Sysmon 어댑터가 이벤트를 읽어 저장했지만 일부 새 이벤트 유형은 기존 시간축에서 표시되지 않았습니다. 가져오기 결과와 뷰어의 표시 조건을 따로 검사했고, 알려진 레인에 배치할 수 없는 유형은 기본 레인으로 보이도록 보완했습니다. 9월 16일 기록에서 Atlas 회귀 테스트 79개가 통과했습니다. MFT·USN 검색 통합과 AWS 배포 검증은 [개발 기록](DEVELOPMENT.md)에 남아 있습니다.
 
-AWS 실험은 구성 코드와 로컬 리허설까지 진행했습니다. 반출한 증거 묶음의 manifest와 해시를 검사해 가져오는 방식이며, 실제 AWS 배포와 MFT·USN의 검색 통합은 [개발 기록](DEVELOPMENT.md)에 남아 있습니다.
+[Windows에서 실행](docs/USAGE.md)
