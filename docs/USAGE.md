@@ -22,60 +22,50 @@
 
 ```mermaid
 flowchart LR
-    A[KAPE Modules 결과] --> B[파일 목록·SHA-256·헤더 분류]
-    B --> C[이벤트 / Prefetch / 레지스트리 / 바로가기 어댑터]
-    C --> D[SQLite: 원래 CSV 값·관찰·관계·처리 이력]
-    D --> E[로컬 근거 조회 화면]
-    D --> F[Neo4j: 노드·관계 투영]
-    D --> G[JSONL 내보내기]
-    D --> H[근거 검토 메모 / 선택적 로컬 AI 가설]
+    A["KAPE Modules CSV"] --> B["파일 목록과 해시 기록"]
+    B --> C["아티팩트별 CSV 읽기"]
+    C --> D["SQLite 원본·관찰·관계"]
+    D --> E["로컬 조사 화면"]
+    D --> F["Neo4j 관계 그래프"]
+    D --> G["JSONL 내보내기"]
+    D --> H["검토 메모와 로컬 AI 가설"]
 ```
 
-## 기존 개발 PC의 DB·접속 예시
+## Windows에서 조사 화면 실행
 
-- KAPE 근거·새 그래프 확인: **http://127.0.0.1:8771**
-- 공격 샘플·새 그래프 조회: **http://127.0.0.1:8769**
-- Neo4j Browser: **http://127.0.0.1:17474**
-- Bolt: `bolt://127.0.0.1:17687`
-- 데이터: `data/sba.sqlite`, 사건 ID `SBA-20260831`
-- Neo4j 계정은 `neo4j`, 무작위 비밀번호는 `.runtime/connection.json`에 있습니다. 이 파일과 데이터 디렉터리는 Git에서 제외됩니다. 위 서비스는 별도로 시작해야 하며 현재 실행 중임을 보장하지 않습니다.
-
-조회 화면은 SQLite의 그래프 투영을 직접 읽습니다. 따라서 Neo4j를 켜지 않아도 근거 조회가 가능합니다. Neo4j는 같은 그래프를 Cypher로 확장 탐색하는 용도입니다.
-
-다음 실행 때 PowerShell에서:
+먼저 아래 가져오기 명령으로 SQLite 파일을 만듭니다. 그다음 저장소 루트에서 PowerShell 명령을 실행합니다.
 
 ```powershell
-cd C:\Users\SBA_USER\Desktop\evidence-atlas
-.\run.ps1 -Port 8771
-# Neo4j도 시작하려면:
-.\run.ps1 -WithNeo4j -Port 8771
+.\run.ps1 -Database data/case.sqlite
 ```
 
-`run.ps1`은 Codex 번들 Python이 있으면 사용하고, 없으면 PATH의 Python을 사용합니다. `-PythonPath`로 Python 3.11 이상을 지정할 수 있습니다. 위 명령은 8771 포트를 사용합니다. 기본값은 8765이며, 이미 같은 포트에 서버가 있으면 먼저 해당 서버의 DB와 실행 경로를 확인하세요. 직접 실행한 조회 서버는 해당 콘솔에서 Ctrl+C로 종료합니다. Neo4j는 별도 백그라운드 프로세스이며 조회 서버 종료와 함께 종료되지 않습니다.
+콘솔에 표시된 로컬 주소를 엽니다. 기본 포트는 8765입니다. Python 자동 선택이 맞지 않으면 `-PythonPath`에 Python 3.11 이상 실행 파일을 지정합니다.
+
+조사 화면은 SQLite에서 기록을 읽습니다. Cypher로 관계를 다룰 때는 [Neo4j 설치와 적재](#neo4j-설치와-적재)를 참고하세요.
 
 ## 가져오기·내보내기
 
 아래 `python`은 Python 3.11 이상입니다. 모든 명령은 이 디렉터리에서 실행합니다. `--db`는 하위 명령 **앞**에 둡니다.
 
 ```powershell
-python -m dfir_graph --db data/sba.sqlite ingest D:\KAPE_RESULT --case SBA-20260831 --time-zone UTC
-python -m dfir_graph --db data/sba.sqlite stats
-python -m dfir_graph --db data/sba.sqlite search powershell --label ExecutableReference
-python -m dfir_graph --db data/sba.sqlite evidence 'record:여기에_식별자'
-python -m dfir_graph --db data/sba.sqlite export data/export
+python -m dfir_graph --db data/case.sqlite ingest C:\path\to\KAPE-Modules --case CASE-001 --time-zone UTC
+python -m dfir_graph --db data/case.sqlite stats
+python -m dfir_graph --db data/case.sqlite search powershell --label ExecutableReference
+python -m dfir_graph --db data/case.sqlite evidence 'record:여기에_식별자'
+python -m dfir_graph --db data/case.sqlite export data/export
 ```
 
 다른 수집본은 새 사건 ID를 사용하세요. `Computer` 값이 한 종류인 EvtxECmd 출력에서 Prefetch의 호스트를 추정하고 그 방식을 출처 메타데이터에 기록합니다. 여러 호스트가 섞여 있다면 호스트별로 입력 폴더를 나눠 `--host`를 지정하세요. 확인되지 않은 호스트는 미확정 상태로 남습니다.
 
-시각에 시간대 표기가 없으면 `--time-zone` 가정으로 정규화합니다. 과거 SBA 수집본은 **UTC 가정**으로 적재했으며 수집자의 설정을 독립적으로 검증한 것은 아닙니다. `LastModifiedTimeUTC`는 열 정의에 따라 UTC로 처리합니다. 모르면 `unknown`을 사용해 그 외 시각의 UTC 변환을 보류할 수 있습니다. 같은 사건·입력의 호스트/시간대나 이미 파싱된 어댑터의 해석 버전이 달라지면 새 사건/DB가 필요합니다. 새로 지원하는 어댑터는 이전 미지원 파일만 추가 처리하며 기존 레코드 식별자는 유지합니다.
+시각에 시간대 표기가 없으면 `--time-zone` 가정으로 정규화합니다. 아래 검증에 쓴 수집본은 UTC로 가정해 적재했습니다. `LastModifiedTimeUTC`는 열 정의에 따라 UTC로 처리합니다. 모르면 `unknown`을 사용해 그 외 시각의 UTC 변환을 보류할 수 있습니다. 같은 사건·입력의 호스트/시간대나 이미 파싱된 어댑터의 해석 버전이 달라지면 새 사건/DB가 필요합니다. 새로 지원하는 어댑터는 이전 미지원 파일만 추가 처리하며 기존 레코드 식별자는 유지합니다.
 
 ## 로컬 분석 보조와 AI 연결
 
 기본 근거 검토와 보고서는 모델 없이 작동합니다. 로컬 Ollama에 모델을 별도로 설치한 뒤 `run.ps1 -AIModel '설치된-모델명'` 또는 다음 CLI로 가설을 생성할 수 있습니다. 이미 실행 중인 서버에는 실행 옵션이 자동 반영되지 않습니다.
 
 ```powershell
-python -m dfir_graph --db data/sba.sqlite analyze 'Observation:식별자' --markdown
-python -m dfir_graph --db data/sba.sqlite analyze 'Observation:식별자' --model '설치된-모델명'
+python -m dfir_graph --db data/case.sqlite analyze 'Observation:식별자' --markdown
+python -m dfir_graph --db data/case.sqlite analyze 'Observation:식별자' --model '설치된-모델명'
 ```
 
 접속 대상은 `127.0.0.1:11434`로 고정합니다. 프록시·리디렉션·클라우드 모델을 허용하지 않으며 모델을 자동 설치하지 않습니다. 웹에서 버튼을 누를 때만 선택한 근거 묶음을 로컬 모델에 전달하고, 동시 추론은 1개로 제한합니다. 시간 제한은 120초입니다. 데이터 안의 지시문은 명령이 아니라 증거 문자열로 취급합니다. 모델에 셸, Cypher 실행, 차단 도구를 제공하지 않습니다.
@@ -88,8 +78,8 @@ python -m dfir_graph --db data/sba.sqlite analyze 'Observation:식별자' --mode
 # Windows x64: 공식 배포처에서 JRE 21 / Neo4j Community 5.26.30 다운로드
 # 해시 검증 후 .runtime에만 설치. Windows 서비스/전역 PATH 변경 없음.
 python scripts/setup_runtime.py --start
-python -m dfir_graph --db data/sba.sqlite load-neo4j --local-config .runtime/connection.json
-python scripts/verify_live.py --db data/sba.sqlite --reload
+python -m dfir_graph --db data/case.sqlite load-neo4j --local-config .runtime/connection.json
+python scripts/verify_live.py --db data/case.sqlite --reload
 ```
 
 처음 설치할 때 인터넷이 필요합니다. 자료나 로그를 외부로 전송하는 기능은 없습니다. 이미 Neo4j가 있다면 `python -m pip install -r requirements.txt` 후 `NEO4J_PASSWORD` 환경변수와 `--uri`, `--user`, `--database`를 사용하세요. 로그인 비밀값을 소스 코드에 넣지 않습니다.
@@ -140,7 +130,7 @@ Cypher 예시는 [queries/investigate.cypher](../queries/investigate.cypher)를 
 
 ## 이 수집본의 검증 결과
 
-2026-09-09, `D:\KAPE_RESULT` 기준:
+2026-09-09 Windows 수집본에서 확인한 결과입니다.
 
 | 항목 | 결과 |
 |---|---:|
@@ -160,7 +150,7 @@ Cypher 예시는 [queries/investigate.cypher](../queries/investigate.cypher)를 
 
 PECmd 오류 63개, Amcache 식별자 없는 행 16개, UserAssist 내부 관리 항목 등은 원래 레코드를 보존하며 실행 주장을 만들지 않습니다. 4688 120개는 CommandLine이 비어 있습니다. 콘솔 오류 패턴 1,566개는 도구 상태이며 공격 건수가 아닙니다. **미지원 178개 파일은 아직 의미 분석되지 않았습니다.**
 
-기존 DB를 `data/sba-before-artifacts-20260909.sqlite`에 백업하고 확장했습니다. 기존 159,897개 레코드의 식별자/원래 값과 225개 출처 해시가 유지됨을 대조했습니다. SQLite 무결성/FK, Neo4j의 전체 노드·관계 식별자와 연결 끝점, 반복 가져오기/재적재를 검증했습니다. 이는 독립 레포 분리 이전 검증 기록입니다. 당시 독립 레포의 **sba.sqlite / 8771**을 KAPE 확인 대상으로 사용했습니다.
+확장 전후에 레코드 159,897개의 식별자와 원본 값, 출처 225개의 해시를 대조했습니다. SQLite 무결성과 외래 키, Neo4j의 노드·관계 식별자와 끝점, 반복 가져오기를 검사했습니다.
 
 ## 테스트와 운영 한계
 
@@ -168,7 +158,7 @@ PECmd 오류 63개, Amcache 식별자 없는 행 16개, UserAssist 내부 관리
 
 ```powershell
 python -m unittest discover -s tests -v
-python scripts/verify_live.py --db data/sba.sqlite --reload
+python scripts/verify_live.py --db data/case.sqlite --reload
 ```
 
 단위 테스트는 반복 적재, 파일 단위 실패/재시도, PID 의미, 공급자별 Event ID 충돌, VSS 분리, Prefetch 오류, 시간대/정밀도, 출처 보존, 사건 분리와 출력 경로를 검증합니다. 실데이터는 파일별 트랜잭션으로 처리하며 실패한 파일만 재시도합니다. 입력 내용이 바뀌면 새 해시의 자료 버전으로 추가됩니다. 기존 버전이나 다른 경로의 중복 수집본을 자동 삭제·병합하지 않습니다.
@@ -187,8 +177,6 @@ python -m dfir_graph --db data/attack-samples.sqlite es-status --case EVTX-ATTAC
 2026-09-09 실제 로컬 ES에서 출처 1 / 레코드 37,357 / 노드 325 / 관계 736 / 이슈 84가 SQLite 집계와 일치하고, 원래 CSV 레코드 조회도 일치함을 확인했습니다. 새 인덱스명은 정확한 사건 ID의 SHA-256을 포함해 대소문자·기호·Unicode·긴 ID의 slug 충돌을 방지합니다. 구 인덱스는 보존하며 SQLite 원본은 변경하지 않습니다.
 
 Kibana의 **Evidence Atlas Records**는 `ea-current-records` 별칭을 사용합니다. `ea-records-*`를 그대로 쓰면 보존한 구 인덱스와 새 인덱스가 중복 집계될 수 있습니다. 현재 데이터 뷰는 이름과 ID를 유지한 채 별칭으로 전환했습니다. 새 사건 동기화도 이 별칭에 추가됩니다. 부분 실패는 명령 실패로 처리하고, 같은 `es-sync`를 재실행할 수 있습니다. 새 동기화는 1,000문서씩 처리하지만 ES 전체 작업의 원자성은 보장하지 않습니다.
-
-2026-09-09 당시 8769 뷰어가 구 저장소에서 실행 중임을 정적 파일의 일치로 확인했습니다. 새 DB와 집계·출처 해시를 대조한 후 독립 저장소에서 재시작했고, 당시 8769의 정적 파일 및 그래프 API가 새 코드와 일치함을 확인했습니다. 8771은 SBA KAPE 자료 검증에 사용한 포트입니다.
 
 설치용 wheel을 별도 임시 디렉터리에서 빌드하고 그래프 JS/CSS와 라이브러리·라이선스 포함을 확인했습니다.
 

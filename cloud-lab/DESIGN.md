@@ -60,7 +60,7 @@ flowchart TB
     APP -->|"TLS"| DB["RDS MySQL"]
     APP --> SM["Secrets Manager"]
     B["자료 배치 역할"] --> DATA["업무 S3"]
-    LOG["WAF·ALB·Flow·DNS·CloudTrail"] --> S3["로그 S3 / Security archive"]
+    LOG["WAF·ALB·Flow·DNS·CloudTrail"] --> S3["보안 계정의 S3 로그 보관소"]
     DB --> CW["CloudWatch Logs"]
     WEB -. "EVE·OS·웹" .-> ES["Elastic SIEM"]
     APP -. "앱 감사·Defend·OS" .-> ES

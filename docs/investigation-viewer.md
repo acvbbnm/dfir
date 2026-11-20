@@ -4,12 +4,12 @@
 
 ~~~mermaid
 flowchart LR
-    A["KAPE Modules CSV"] --> B["아티팩트 파싱 · 파일 SHA-256"]
-    B --> C["SQLite · 원본 행과 관찰 기록"]
-    C --> D["시간축 · 기록 시각과 실행 시각"]
-    C --> E["관계 그래프 · 공유 참조"]
-    D --> F["원본 CSV 행과 연결 근거"]
-    E --> F
+    A["KAPE Modules CSV"] --> B["CSV 읽기와 SHA-256 기록"]
+    B --> C["SQLite에 원본 행과 관찰 저장"]
+    C --> D["시간축"]
+    C --> E["관계 그래프"]
+    D -->|"시각 근거"| F["원본 CSV 행"]
+    E -->|"연결 근거"| F
 ~~~
 
 ## 시각과 관계

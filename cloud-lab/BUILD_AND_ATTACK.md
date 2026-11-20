@@ -70,7 +70,7 @@ flowchart TB
     WEB -. "EVE·웹·OS" .-> SOC
     RDS --> CW["CloudWatch Logs"]
     CW --> SOC
-    AWSLOG["WAF·ALB·CloudTrail·Flow·DNS"] --> LAND["S3 로그 landing / 중앙 archive"]
+    AWSLOG["WAF·ALB·CloudTrail·Flow·DNS"] --> LAND["S3 로그 수집·중앙 보관"]
     LAND -->|"SQS·수집기"| SOC
     SOC -->|"경보"| SOAR["Security: 사건·대응 워크플로"]
     SOAR --> EVID["Security: 증거 S3 / KMS<br/>EBS·RDS 복사 스냅샷"]

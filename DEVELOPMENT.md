@@ -37,10 +37,10 @@ flowchart LR
         W --> S["Elastic SIEM / Fleet"]
         A --> S
         C["CloudTrail / ALB / Flow / DNS / RDS 로그"] --> S
-        S --> Q["경보 / 조사 후보"]
-        Q --> E["사건별 수집 · S3 증거 / manifest"]
+        S --> Q["조사할 경보"]
+        Q --> E["S3에 사건 증거와 manifest 저장"]
     end
-    E -.->|"반출 후 cloud-import"| AT["Atlas · SQLite / 시간축 / 관계 그래프"]
+    E -.->|"오프라인 가져오기"| AT["Atlas 시간축과 관계 그래프"]
     K["KAPE Modules CSV"] --> AT
     AT --> R["원본 근거 검토 / 보고서 / 선택적 로컬 AI 가설"]
 ```

@@ -53,15 +53,15 @@ SOC를 Workload 계정에 두는 이유는 단말→Elastic 연결과 300달러 
 
 ~~~mermaid
 flowchart LR
-    subgraph W["Workload 계정 · 격리된 실습 VPC"]
+    subgraph W["Workload 계정의 실습 VPC"]
       T["시나리오 실행기"] --> ALB["내부 ALB + WAF"]
       ALB --> WEB["Nginx · Suricata IPS"] --> APP["Linux · WordPress"] --> DB["RDS MySQL"]
       WEB -. "이벤트" .-> SOC["Elastic + 경보 수집기"]
       APP -. "이벤트" .-> SOC
       DB -. "이벤트" .-> SOC
-      LAND["S3 로그 landing"] --> SOC
+      LAND["S3 로그 수집 버킷"] --> SOC
       ALB -. "로그" .-> LAND
-      SSM["SSM Agent / 전용 endpoints"] --> APP
+      SSM["SSM Agent와 전용 엔드포인트"] --> APP
     end
     subgraph S["Security/Evidence 계정"]
       RAW["S3 감사·로그 archive"]
